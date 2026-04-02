@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英语单词训练工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+
+        body {
+            background-color: #f5f7fa;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+        }
+
+        .title {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 25px;
+            font-size: 24px;
+        }
+
+        .panel {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #e1e4e8;
+            border-radius: 8px;
+        }
+
+        .panel-title {
+            font-weight: bold;
+            color: #34495e;
+            margin-bottom: 12px;
+            font-size: 16px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        select, button, input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        select:focus, input:focus {
+            border-color: #3498db;
+        }
+
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        .train-area {
+            text-align: center;
+            padding: 30px 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        #question {
+            font-size: 24px;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        #phonetic {
+            font-size: 18px;
+            color: #7f8c8d;
+            margin-bottom: 20px;
+        }
+
+        #inputAnswer {
+            width: 300px;
+            height: 45px;
+            font-size: 16px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        #tip {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        #score {
+            font-size: 16px;
+            color: #e67e22;
+            font-weight: bold;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .danger {
+            background-color: #e74c3c;
+        }
+
+        .danger:hover {
+            background-color: #c0392b;
+        }
+
+        .success {
+            background-color: #2ecc71;
+        }
+
+        .purple {
+            background-color: #9b59b6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">英语单词训练工具</h1>
+
+        <div class="panel">
+            <div class="panel-title">单词库管理</div>
+            <div class="form-row">
+                <input type="file" id="excelFile" accept=".xlsx">
+                <button onclick="loadExcel()">导入Excel单词表</button>
+                <button onclick="reloadData()">刷新单词库</button>
+                <button onclick="trainAllWords()" class="success">直接全量训练</button>
+            </div>
+            <div id="loadTip" style="margin-top:8px; color:green;"></div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-title">单词筛选</div>
+            <div class="form-row">
+                <select id="cboVersion" onchange="loadGrades()"></select>
+                <select id="cboGrade" onchange="loadBooks()" disabled></select>
+                <select id="cboBook" onchange="loadModules()" disabled></select>
+                <select id="cboModule" disabled></select>
+                <button id="btnFilter" onclick="filterWords()" disabled>开始筛选训练</button>
+            </div>
+            <div class="form-row">
+                <select id="cboLetter"></select>
+                <button onclick="filterByLetter()">按首字母训练</button>
+                <select id="cboMode">
+                    <option value="zhong">中译英</option>
+                    <option value="ying">英译中</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-title">错题本</div>
+            <div class="form-row">
+                <button id="btnTrainWrong" onclick="trainWrongWords()" disabled class="purple">错题训练</button>
+                <button id="btnClearWrong" onclick="clearWrongWords()" class="danger">清空错题本</button>
+                <div id="score">得分：0</div>
+            </div>
+        </div>
+
+        <div class="train-area">
+            <div id="question">等待开始训练</div>
+            <div id="phonetic"></div>
+            <input type="text" id="inputAnswer" placeholder="请输入答案" disabled>
+            <div id="tip"></div>
+            <div class="btn-group">
+                <button id="btnCheck" onclick="checkAnswer()" disabled>提交答案</button>
+                <button id="btnNext" onclick="nextWord()" disabled>下一题</button>
+                <button id="btnShow" onclick="showAnswer()" disabled>显示答案</button>
+                <button id="btnSpeak" onclick="speakWord()" disabled>🔊 发音</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script>
+        let wordList = [];
+        let currentWords = [];
+        let wrongWords = [];
+        let currentIndex = 0;
+        let score = 0;
+        let synth = window.speechSynthesis;
+
+        // 内置默认单词库（替代Excel导入）
+        const defaultWordList = [
+            {版本:"人教版",年级:"三年级",册次:"上册",模块:"Module1",英文:"book",音标:/bʊk/,中文:"书"},
+            {版本:"人教版",年级:"三年级",册次:"上册",模块:"Module1",英文:"pen",音标:/pen/,中文:"钢笔"},
+            {版本:"人教版",年级:"三年级",册次:"上册",模块:"Module1",英文:"pencil",音标:/ˈpensl/,中文:"铅笔"},
+            {版本:"人教版",年级:"三年级",册次:"上册",模块:"Module2",英文:"ruler",音标:/ˈruːlə/,中文:"尺子"},
+            {版本:"人教版",年级:"三年级",册次:"上册",模块:"Module2",英文:"eraser",音标:/ɪˈreɪzə/,中文:"橡皮"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module1",英文:"school",音标:/skuːl/,中文:"学校"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module1",英文:"teacher",音标:/ˈtiːtʃə/,中文:"老师"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"student",音标:/ˈstjuːdənt/,中文:"学生"},
+            {版本:"外研版",年级:"三年级",册次:"上册",模块:"Module1",英文:"hello",音标:/həˈləʊ/,中文:"你好"},
+            {版本:"外研版",年级:"三年级",册次:"上册",模块:"Module1",英文:"goodbye",音标:/ˌɡʊdˈbaɪ/,中文:"再见"}
+        ];
+
+        window.onload = function () {
+            initVoice();
+            loadWrongWords();
+            initLetters();
+            // 自动加载内置单词库
+            loadDefaultWords();
+        };
+
+        // 加载内置单词库
+        function loadDefaultWords() {
+            wordList = defaultWordList.map(item => ({
+                version: item.版本,
+                grade: item.年级,
+                book: item.册次,
+                module: item.模块,
+                english: item.英文,
+                phonetic: item.音标.toString().replace(/\//g, ''),
+                chinese: item.中文
+            }));
+            document.getElementById("loadTip").textContent = `✅ 内置单词库加载成功：共${wordList.length}个单词`;
+            initFilters();
+            setTimeout(setDefaultFilters, 300);
+        }
+
+        function initVoice() {
+            if (!synth) {
+                alert("浏览器不支持语音合成");
+                return;
+            }
+            synth.onvoiceschanged = function () {
+                let voices = synth.getVoices();
+                let bestVoice = voices.find(v =>
+                    v.lang.includes("en-US") && v.name.includes("Male")
+                );
+                if (bestVoice) synth.voice = bestVoice;
+            };
+        }
+
+        function initLetters() {
+            let select = document.getElementById("cboLetter");
+            for (let i = 65; i <= 90; i++) {
+                let opt = document.createElement("option");
+                opt.value = String.fromCharCode(i);
+                opt.textContent = String.fromCharCode(i);
+                select.appendChild(opt);
+            }
+        }
+
+        function getSafeValue(val) {
+            return (val ?? "").toString().trim();
+        }
+
+        function loadExcel() {
+            let fileInput = document.getElementById("excelFile");
+            if (!fileInput.files[0]) {
+                alert("请选择Excel文件");
+                return;
+            }
+
+            let reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    let data = new Uint8Array(e.target.result);
+                    let workbook = XLSX.read(data, { type: 'array' });
+                    let sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    let json = XLSX.utils.sheet_to_json(sheet);
+
+                    wordList = [];
+                    json.forEach(row => {
+                        let english = getSafeValue(row.英文);
+                        if (english === "") return;
+
+                        wordList.push({
+                            version: getSafeValue(row.版本),
+                            grade: getSafeValue(row.年级),
+                            book: getSafeValue(row.册次),
+                            module: getSafeValue(row.模块),
+                            english: english,
+                            phonetic: getSafeValue(row.音标),
+                            chinese: getSafeValue(row.中文)
+                        });
+                    });
+
+                    document.getElementById("loadTip").textContent =
+                        `✅ 加载成功：共${wordList.length}个单词`;
+                    initFilters();
+                    setTimeout(setDefaultFilters, 300);
+                } catch (err) {
+                    alert("Excel读取失败：" + err.message);
+                    console.error(err);
+                }
+            };
+            reader.readAsArrayBuffer(fileInput.files[0]);
+        }
+
+        function reloadData() {
+            initFilters();
+            loadWrongWords();
+            document.getElementById("question").textContent = "等待开始训练";
+            document.getElementById("phonetic").textContent = "";
+            document.getElementById("inputAnswer").value = "";
+            document.getElementById("loadTip").textContent = "单词库已刷新";
+        }
+
+        function initFilters() {
+            let versionSel = document.getElementById("cboVersion");
+            versionSel.innerHTML = "";
+
+            let versions = [...new Set(wordList.map(w => w.version))].sort();
+            versions.forEach(v => {
+                let opt = document.createElement("option");
+                opt.value = v;
+                opt.textContent = v;
+                versionSel.appendChild(opt);
+            });
+
+            if (versions.length > 0) {
+                versionSel.selectedIndex = 0;
+                loadGrades();
+            } else {
+                document.getElementById("cboGrade").innerHTML = "";
+                document.getElementById("cboBook").innerHTML = "";
+                document.getElementById("cboModule").innerHTML = "";
+                document.getElementById("cboGrade").disabled = true;
+                document.getElementById("cboBook").disabled = true;
+                document.getElementById("cboModule").disabled = true;
+                document.getElementById("btnFilter").disabled = true;
+            }
+        }
+
+        function setDefaultFilters() {
+            let versionSel = document.getElementById("cboVersion");
+            if (versionSel.options.length > 0) {
+                versionSel.selectedIndex = 0;
+                loadGrades();
+
+                setTimeout(() => {
+                    let gradeSel = document.getElementById("cboGrade");
+                    if (gradeSel.options.length > 0) {
+                        gradeSel.selectedIndex = 0;
+                        loadBooks();
+
+                        setTimeout(() => {
+                            let bookSel = document.getElementById("cboBook");
+                            if (bookSel.options.length > 0) {
+                                bookSel.selectedIndex = 0;
+                                loadModules();
+
+                                setTimeout(() => {
+                                    let moduleSel = document.getElementById("cboModule");
+                                    if (moduleSel.options.length > 0) {
+                                        moduleSel.selectedIndex = 0;
+                                        document.getElementById("btnFilter").disabled = false;
+                                    }
+                                }, 100);
+                            }
+                        }, 100);
+                    }
+                }, 100);
+            }
+        }
+
+        function loadGrades() {
+            let version = document.getElementById("cboVersion").value;
+            let gradeSel = document.getElementById("cboGrade");
+            gradeSel.innerHTML = "";
+            gradeSel.disabled = true;
+
+            let grades = [...new Set(
+                wordList.filter(w => w.version === version).map(w => w.grade)
+            )].sort((a, b) => getGradeNumber(a) - getGradeNumber(b));
+
+            grades.forEach(g => {
+                let opt = document.createElement("option");
+                opt.value = g;
+                opt.textContent = g;
+                gradeSel.appendChild(opt);
+            });
+
+            if (grades.length > 0) {
+                gradeSel.disabled = false;
+                gradeSel.selectedIndex = 0;
+                loadBooks();
+            }
+        }
+
+        function loadBooks() {
+            let version = document.getElementById("cboVersion").value;
+            let grade = document.getElementById("cboGrade").value;
+            let bookSel = document.getElementById("cboBook");
+            bookSel.innerHTML = "";
+            bookSel.disabled = true;
+
+            let books = [...new Set(
+                wordList.filter(w => w.version === version && w.grade === grade).map(w => w.book)
+            )].sort((a, b) => getBookOrder(a) - getBookOrder(b));
+
+            books.forEach(b => {
+                let opt = document.createElement("option");
+                opt.value = b;
+                opt.textContent = b;
+                bookSel.appendChild(opt);
+            });
+
+            if (books.length > 0) {
+                bookSel.disabled = false;
+                bookSel.selectedIndex = 0;
+                loadModules();
+            }
+        }
+
+        function loadModules() {
+            let version = document.getElementById("cboVersion").value;
+            let grade = document.getElementById("cboGrade").value;
+            let book = document.getElementById("cboBook").value;
+            let moduleSel = document.getElementById("cboModule");
+            moduleSel.innerHTML = "";
+            moduleSel.disabled = true;
+
+            let modules = [...new Set(
+                wordList.filter(w =>
+                    w.version === version &&
+                    w.grade === grade &&
+                    w.book === book
+                ).map(w => w.module)
+            )].sort((a, b) => getModuleNumber(a) - getModuleNumber(b));
+
+            modules.forEach(m => {
+                let opt = document.createElement("option");
+                opt.value = m;
+                opt.textContent = m;
+                moduleSel.appendChild(opt);
+            });
+
+            if (modules.length > 0) {
+                moduleSel.disabled = false;
+                moduleSel.selectedIndex = 0;
+                document.getElementById("btnFilter").disabled = false;
+            }
+        }
+
+        function getGradeNumber(gradeText) {
+            let numStr = gradeText.replace(/[^0-9]/g, '');
+            return numStr ? parseInt(numStr) : 999;
+        }
+
+        function getBookOrder(bookText) {
+            switch (bookText.trim()) {
+                case "上册": return 1;
+                case "下册": return 2;
+                default:
+                    let numStr = bookText.replace(/[^0-9]/g, '');
+                    return numStr ? parseInt(numStr) : 999;
+            }
+        }
+
+        function getModuleNumber(moduleText) {
+            let numStr = moduleText.replace(/[^0-9]/g, '');
+            return numStr ? parseInt(numStr) : 999;
+        }
+
+        function filterWords() {
+            let version = document.getElementById("cboVersion").value;
+            let grade = document.getElementById("cboGrade").value;
+            let book = document.getElementById("cboBook").value;
+            let module = document.getElementById("cboModule").value;
+
+            currentWords = wordList.filter(w =>
+                w.version === version &&
+                w.grade === grade &&
+                w.book === book &&
+                w.module === module
+            );
+
+            if (currentWords.length === 0) {
+                alert("无匹配单词");
+                return;
+            }
+            startTrain();
+        }
+
+        function filterByLetter() {
+            let letter = document.getElementById("cboLetter").value.toLowerCase();
+            let version = document.getElementById("cboVersion").value;
+
+            if (version) {
+                currentWords = wordList.filter(w =>
+                    w.version === version &&
+                    w.english.toLowerCase().startsWith(letter)
+                );
+            } else {
+                currentWords = wordList.filter(w =>
+                    w.english.toLowerCase().startsWith(letter)
+                );
+            }
+
+            if (currentWords.length === 0) {
+                alert("无匹配单词");
+                return;
+            }
+            startTrain();
+        }
+
+        function trainAllWords() {
+            if (wordList.length === 0) {
+                alert("请先导入Excel单词表");
+                return;
+            }
+            currentWords = [...wordList];
+            startTrain();
+        }
+
+        function startTrain() {
+            currentIndex = 0;
+            score = 0;
+            updateScore();
+            document.getElementById("inputAnswer").disabled = false;
+            document.getElementById("btnCheck").disabled = false;
+            document.getElementById("btnNext").disabled = false;
+            document.getElementById("btnShow").disabled = false;
+            document.getElementById("btnSpeak").disabled = false;
+            showCurrentWord();
+        }
+
+        function showCurrentWord() {
+            if (currentIndex >= currentWords.length) {
+                alert(`训练完成！最终得分：${score}/${currentWords.length}`);
+                disableTrainBtns();
+                document.getElementById("question").textContent = "训练完成";
+                document.getElementById("phonetic").textContent = "";
+                return;
+            }
+
+            let word = currentWords[currentIndex];
+            let mode = document.getElementById("cboMode").value;
+            let tip = document.getElementById("tip");
+            tip.textContent = "";
+            tip.style.color = "";
+
+            if (mode === "zhong") {
+                document.getElementById("question").textContent = `【中译英】${word.chinese}`;
+                document.getElementById("phonetic").textContent = "";
+            } else {
+                document.getElementById("question").textContent = `【英译中】${word.english}`;
+                document.getElementById("phonetic").textContent = word.phonetic ? `音标：${word.phonetic}` : "";
+            }
+
+            document.getElementById("inputAnswer").value = "";
+            document.getElementById("inputAnswer").focus();
+            document.getElementById("btnCheck").disabled = false;
+        }
+
+        function checkAnswer() {
+            let input = document.getElementById("inputAnswer").value.trim().toLowerCase();
+            if (!input) {
+                alert("请输入答案");
+                return;
+            }
+
+            let word = currentWords[currentIndex];
+            let mode = document.getElementById("cboMode").value;
+            let tip = document.getElementById("tip");
+            let answer = mode === "zhong" ? word.english.toLowerCase() : word.chinese.toLowerCase();
+
+            if (input === answer) {
+                tip.textContent = "✅ 回答正确！";
+                tip.style.color = "green";
+                score++;
+                updateScore();
+            } else {
+                tip.textContent = `❌ 错误！正确答案：${mode === "zhong" ? word.english : word.chinese}`;
+                tip.style.color = "red";
+                saveWrongWord(word);
+            }
+
+            document.getElementById("btnCheck").disabled = true;
+        }
+
+        function nextWord() {
+            currentIndex++;
+            showCurrentWord();
+        }
+
+        function showAnswer() {
+            let word = currentWords[currentIndex];
+            let mode = document.getElementById("cboMode").value;
+            let tip = document.getElementById("tip");
+            tip.textContent = `答案：${mode === "zhong" ? word.english : word.chinese}`;
+            tip.style.color = "darkblue";
+
+            if (mode === "zhong") {
+                document.getElementById("phonetic").textContent = word.phonetic ? `音标：${word.phonetic}` : "";
+            }
+
+            saveWrongWord(word);
+            document.getElementById("btnCheck").disabled = true;
+        }
+
+        function speakWord() {
+            if (currentIndex >= currentWords.length) return;
+            let word = currentWords[currentIndex].english;
+            if (!word) return;
+
+            synth.cancel();
+            let utterance = new SpeechSynthesisUtterance(word);
+            utterance.rate = 0.9;
+            utterance.volume = 1;
+            utterance.lang = "en-US";
+            synth.speak(utterance);
+        }
+
+        function trainWrongWords() {
+            if (wrongWords.length === 0) {
+                alert("错题本为空");
+                return;
+            }
+            currentWords = [...wrongWords];
+            startTrain();
+            document.getElementById("tip").textContent = `📝 错题训练：共${currentWords.length}题`;
+            document.getElementById("tip").style.color = "purple";
+        }
+
+        function saveWrongWord(word) {
+            let exist = wrongWords.some(w => w.english === word.english);
+            if (exist) return;
+
+            wrongWords.push(word);
+            localStorage.setItem("wrongWords", JSON.stringify(wrongWords));
+            document.getElementById("btnTrainWrong").disabled = false;
+        }
+
+        function loadWrongWords() {
+            let data = localStorage.getItem("wrongWords");
+            wrongWords = data ? JSON.parse(data) : [];
+            document.getElementById("btnTrainWrong").disabled = wrongWords.length === 0;
+        }
+
+        function clearWrongWords() {
+            if (!confirm("确定清空错题本？无法恢复！")) return;
+            localStorage.removeItem("wrongWords");
+            wrongWords = [];
+            document.getElementById("btnTrainWrong").disabled = true;
+            alert("✅ 错题本已清空");
+        }
+
+        function updateScore() {
+            document.getElementById("score").textContent = `得分：${score}`;
+        }
+
+        function disableTrainBtns() {
+            document.getElementById("btnCheck").disabled = true;
+            document.getElementById("btnNext").disabled = true;
+            document.getElementById("btnShow").disabled = true;
+            document.getElementById("btnSpeak").disabled = true;
+            document.getElementById("inputAnswer").disabled = true;
+        }
+    </script>
+</body>
+</html>
