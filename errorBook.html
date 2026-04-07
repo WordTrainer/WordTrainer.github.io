@@ -19,9 +19,23 @@
 </style>
 </head>
 <body>
-<h1>单词错题本页面</h1>
-<p>这是独立的错题本页面，可单独访问</p>
-<!-- 返回导航主页的按钮 -->
-<button class="back-btn" onclick="window.location.href='/'">返回主页</button>
+<!-- 加到 errorBook.html 的 <body> 开头 -->
+<nav class="top-nav" style="
+    background:#2ea44f;
+    padding:15px 20px;
+    display:flex;
+    gap:15px;
+    align-items:center;
+    justify-content:center;
+    flex-wrap:wrap;
+    box-shadow:0 2px 8px rgba(0,0,0,0.1);
+    position:sticky;
+    top:0;
+    z-index:999;
+">
+    <a href="./index.html" class="nav-link">单词训练</a>
+    <a href="./TwoCode.html" class="nav-link">挪车付费</a>
+    <a href="./errorBook.html" class="nav-link active">单词错题本</a>
+</nav>
 </body>
 </html>
