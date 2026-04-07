@@ -1,62 +1,1131 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WordTrainer - 主页导航</title>
-<style>
-    * {margin:0; padding:0; box-sizing:border-box;}
-    body {
-        background:#f5f5f5;
-        font-family:Arial, sans-serif;
-        display:flex;
-        flex-direction:column;
-        align-items:center;
-        justify-content:center;
-        min-height:100vh;
-        padding:20px;
-    }
-    h1 {color:#333; margin-bottom:40px; font-size:32px;}
-    .page-buttons {
-        display:flex;
-        flex-direction:column;
-        gap:20px;
-        width:100%;
-        max-width:400px;
-    }
-    .page-btn {
-        padding:20px;
-        font-size:20px;
-        border:none;
-        border-radius:10px;
-        background:#2ea44f;
-        color:white;
-        cursor:pointer;
-        transition:background 0.3s;
-    }
-    .page-btn:hover {
-        background:#2c974b;
-        transform:scale(1.02);
-    }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英语单词训练工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+
+        body {
+            background-color: #f5f7fa;
+            padding: 20px;
+        }
+
+        /* ========== 顶部导航栏样式 ========== */
+        .top-nav {
+            width: 100%;
+            background-color: #2c3e50;
+            padding: 12px 0;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 999;
+            margin-bottom: 20px;
+        }
+        .nav-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+        }
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            font-size: 16px;
+            padding: 8px 16px;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+        .nav-link:hover {
+            background-color: #3498db;
+            color: #fff;
+        }
+        .nav-link.active {
+            background-color: #3498db;
+            font-weight: bold;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+        }
+
+        .title {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 25px;
+            font-size: 24px;
+        }
+
+        .panel {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #e1e4e8;
+            border-radius: 8px;
+        }
+
+        .panel-title {
+            font-weight: bold;
+            color: #34495e;
+            margin-bottom: 12px;
+            font-size: 16px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        select, button, input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        select:focus, input:focus {
+            border-color: #3498db;
+        }
+
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        .train-area {
+            text-align: center;
+            padding: 30px 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        #question {
+            font-size: 24px;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        #phonetic {
+            font-size: 18px;
+            color: #7f8c8d;
+            margin-bottom: 20px;
+        }
+
+        #inputAnswer {
+            width: 300px;
+            height: 45px;
+            font-size: 16px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        #tip {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        #score {
+            font-size: 16px;
+            color: #e67e22;
+            font-weight: bold;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .danger {
+            background-color: #e74c3c;
+        }
+
+        .danger:hover {
+            background-color: #c0392b;
+        }
+
+        .success {
+            background-color: #2ecc71;
+        }
+
+        .purple {
+            background-color: #9b59b6;
+        }
+
+        /* 自动训练设置样式 */
+        .auto-setting {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            font-size: 14px;
+            color: #34495e;
+            flex-wrap: wrap;
+        }
+
+        .auto-setting input {
+            width: auto;
+            height: auto;
+        }
+
+        /* 进度显示样式 */
+        .progress {
+            margin: 10px 0;
+            font-size: 14px;
+            color: #3498db;
+            font-weight: bold;
+        }
+
+        /* 掌握次数设置样式 */
+        .mastery-setting {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-left: 15px;
+        }
+
+        .mastery-setting input {
+            width: 50px;
+            padding: 4px;
+        }
+    </style>
 </head>
 <body>
-<h1>WordTrainer 工具导航</h1>
 
-<div class="page-buttons">
-    <!-- 跳转单词训练主页面（index.html 本身也可作为功能页，这里示例跳转到自身） -->
-    <button class="page-btn" onclick="window.location.href='./index.html'">
-        1. 单词训练主页面
-    </button>
-    <!-- 跳转挪车付费页面（TwoCode.html） -->
-    <button class="page-btn" onclick="window.location.href='./TwoCode.html'">
-        2. 挪车付费页面
-    </button>
-    <!-- 跳转错题本页面（errorBook.html） -->
-    <button class="page-btn" onclick="window.location.href='./errorBook.html'">
-        3. 单词错题本页面
-    </button>
-</div>
+    <!-- ========== 顶部导航栏 ========== -->
+    <div class="top-nav">
+        <div class="nav-container">
+            <a href="index.html" class="nav-link" id="nav-index">单词训练</a>
+            <a href="TwoCode.html" class="nav-link" id="nav-two">挪车付费</a>
+            <a href="errorBook.html" class="nav-link" id="nav-error">错题本</a>
+        </div>
+    </div>
 
+    <div class="container">
+        <h1 class="title">英语单词训练工具</h1>
+
+        <div class="panel">
+            <div class="panel-title">单词库管理</div>
+            <div class="form-row">
+                <input type="file" id="excelFile" accept=".xlsx">
+                <button onclick="loadExcel()">导入Excel单词表</button>
+                <button onclick="reloadData()">刷新单词库</button>
+                <button onclick="trainAllWords()" class="success">直接全量训练</button>
+                <button onclick="autoAddDemoWords()" style="background:#9b59b6;">编程自动添加单词</button>
+            </div>
+            <div id="loadTip" style="margin-top:8px; color:green;"></div>
+            <div class="auto-setting">
+                <input type="checkbox" id="autoStart" checked>
+                <label for="autoStart">自动开始训练（加载完成后）</label>
+                
+                <input type="checkbox" id="randomOrder" checked style="margin-left:15px;">
+                <label for="randomOrder">随机出题顺序</label>
+                
+                <input type="checkbox" id="skipMastered" checked style="margin-left:15px;">
+                <label for="skipMastered">自动跳过已掌握单词</label>
+                
+                <div class="mastery-setting">
+                    <label>掌握次数：</label>
+                    <input type="number" id="masteryCount" value="1" min="1" max="5">
+                    <label>次答对</label>
+                </div>
+                
+                <input type="checkbox" id="autoNext" checked style="margin-left:15px;">
+                <label for="autoNext">自动下一题（答对后1.5秒）</label>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-title">单词筛选</div>
+            <div class="form-row">
+                <select id="cboVersion" onchange="loadGrades()"></select>
+                <select id="cboGrade" onchange="loadBooks()" disabled></select>
+                <select id="cboBook" onchange="loadModules()" disabled></select>
+                <select id="cboModule" disabled></select>
+                <button id="btnFilter" onclick="filterWords()" disabled>开始筛选训练</button>
+            </div>
+            <div class="form-row">
+                <select id="cboLetter"></select>
+                <button onclick="filterByLetter()">按首字母训练</button>
+                <select id="cboMode">
+                    <option value="zhong">中译英</option>
+                    <option value="ying">英译中</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-title">错题本</div>
+            <div class="form-row">
+                <button id="btnTrainWrong" onclick="trainWrongWords()" disabled class="purple">错题训练</button>
+                <button id="btnClearWrong" onclick="clearWrongWords()" class="danger">清空错题本</button>
+                <div id="score">得分：0</div>
+                <button onclick="clearMasteredWords()" class="danger" style="margin-left:10px;">清空已掌握单词</button>
+            </div>
+        </div>
+
+        <div class="train-area">
+            <div class="progress" id="progress">进度：0/0</div>
+            <div id="question">等待开始训练</div>
+            <div id="phonetic"></div>
+            <input type="text" id="inputAnswer" placeholder="请输入答案" disabled>
+            <div id="tip"></div>
+            <div class="btn-group">
+                <button id="btnCheck" onclick="checkAnswer()" disabled>提交答案</button>
+                <button id="btnNext" onclick="nextWord()" disabled>下一题</button>
+                <button id="btnShow" onclick="showAnswer()" disabled>显示答案</button>
+                <button id="btnSpeak" onclick="speakWord()" disabled>🔊 发音</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script>
+        // ========== 导航栏当前页面高亮 ==========
+        document.addEventListener('DOMContentLoaded', function() {
+            const page = window.location.pathname.split('/').pop();
+            if(page === 'index.html' || page === '') {
+                document.getElementById('nav-index').classList.add('active');
+            } else if(page === 'TwoCode.html') {
+                document.getElementById('nav-two').classList.add('active');
+            } else if(page === 'errorBook.html') {
+                document.getElementById('nav-error').classList.add('active');
+            }
+        });
+
+        let wordList = [];
+        let currentWords = [];
+        let wrongWords = [];
+        let masteredWords = {};
+        let currentIndex = 0;
+        let score = 0;
+        let synth = window.speechSynthesis;
+        let autoNextTimer = null;
+
+        window.onload = function () {
+            initVoice();
+            loadWrongWords();
+            loadMasteredWords();
+            initLetters();
+            autoLoadExcel();
+        };
+
+        async function autoLoadExcel() {
+            try {
+                document.getElementById("loadTip").textContent = "⏳ 正在自动加载单词库...";
+                
+                const response = await fetch("words.xlsx");
+                const arrayBuffer = await response.arrayBuffer();
+                const data = new Uint8Array(arrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(sheet);
+
+                wordList = [];
+                json.forEach(row => {
+                    const english = getSafeValue(row.英文);
+                    if (!english) return;
+
+                    wordList.push({
+                        version: getSafeValue(row.版本),
+                        grade: getSafeValue(row.年级),
+                        book: getSafeValue(row.册次),
+                        module: getSafeValue(row.模块),
+                        english: english,
+                        phonetic: getSafeValue(row.音标),
+                        chinese: getSafeValue(row.中文)
+                    });
+                });
+
+                document.getElementById("loadTip").textContent =
+                    `✅ 自动加载完成：共${wordList.length}个单词`;
+                initFilters();
+                setTimeout(() => {
+                    setDefaultFilters();
+                    if (document.getElementById("autoStart").checked) {
+                        autoStartTraining();
+                    }
+                }, 300);
+            } catch (err) {
+                console.error("自动加载Excel失败", err);
+                document.getElementById("loadTip").textContent =
+                    "⚠️ 未找到 words.xlsx，已加载内置完整单词库";
+                loadDefaultWords();
+            }
+        }
+
+        const defaultWordList = [
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"ben",音标:"/ben/",中文:"本"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"pen",音标:"/pen/",中文:"钢笔"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"ten",音标:"/ten/",中文:"十"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"leg",音标:"/leg/",中文:"腿"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"red",音标:"/red/",中文:"红色的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"hen",音标:"/hen/",中文:"母鸡"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"bed",音标:"/bed/",中文:"床"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"desk",音标:"/desk/",中文:"书桌"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"let",音标:"/let/",中文:"让"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"get",音标:"/get/",中文:"得到"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"pet",音标:"/pet/",中文:"宠物"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"net",音标:"/net/",中文:"网"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"jet",音标:"/dʒet/",中文:"喷气式飞机"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"vet",音标:"/vet/",中文:"兽医"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"egg",音标:"/eg/",中文:"鸡蛋"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"fan",音标:"/fæn/",中文:"扇子"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"man",音标:"/mæn/",中文:"男人"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"can",音标:"/kæn/",中文:"能；罐头"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"pan",音标:"/pæn/",中文:"平底锅"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"dad",音标:"/dæd/",中文:"爸爸"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"cat",音标:"/kæt/",中文:"猫"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"hat",音标:"/hæt/",中文:"帽子"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"mat",音标:"/mæt/",中文:"垫子"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"rat",音标:"/ræt/",中文:"老鼠"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"bat",音标:"/bæt/",中文:"蝙蝠；球棒"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"fat",音标:"/fæt/",中文:"胖的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"pat",音标:"/pæt/",中文:"轻拍"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"sat",音标:"/sæt/",中文:"坐（过去式）"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"tap",音标:"/tæp/",中文:"水龙头；轻敲"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"cap",音标:"/kæp/",中文:"帽子；盖子"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"map",音标:"/mæp/",中文:"地图"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"bag",音标:"/bæg/",中文:"包"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"tag",音标:"/tæg/",中文:"标签"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"rag",音标:"/ræɡ/",中文:"破布"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"lag",音标:"/læɡ/",中文:"落后"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"ham",音标:"/hæm/",中文:"火腿"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"jam",音标:"/dʒæm/",中文:"果酱；堵塞"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"lamp",音标:"/læmp/",中文:"灯"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"camp",音标:"/kæmp/",中文:"露营"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"hand",音标:"/hænd/",中文:"手"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"sand",音标:"/sænd/",中文:"沙子"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"land",音标:"/lænd/",中文:"陆地；登陆"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"band",音标:"/bænd/",中文:"乐队；带子"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"and",音标:"/ænd/",中文:"和"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"stand",音标:"/stænd/",中文:"站"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"grandpa",音标:"/ˈɡrænpɑː/",中文:"爷爷；外公"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"apple",音标:"/ˈæpl/",中文:"苹果"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"ant",音标:"/ænt/",中文:"蚂蚁"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"sad",音标:"/sæd/",中文:"难过的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"glad",音标:"/ɡlæd/",中文:"高兴的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"bad",音标:"/bæd/",中文:"坏的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"had",音标:"/hæd/",中文:"有（过去式）"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"mad",音标:"/mæd/",中文:"生气的；疯狂的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"back",音标:"/bæk/",中文:"背；后面；返回"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"black",音标:"/blæk/",中文:"黑色的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"snack",音标:"/snæk/",中文:"小吃"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"pack",音标:"/pæk/",中文:"打包；包裹"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"jacket",音标:"/ˈdʒækɪt/",中文:"夹克"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"actor",音标:"/ˈæktə/",中文:"演员"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"fact",音标:"/fækt/",中文:"事实"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"taxi",音标:"/ˈtæksi/",中文:"出租车"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"fax",音标:"/fæks/",中文:"传真"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"relax",音标:"/rɪˈlæks/",中文:"放松"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"glasses",音标:"/ˈɡlɑːsɪz/",中文:"眼镜"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"class",音标:"/klɑːs/",中文:"班级；课"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"grass",音标:"/ɡrɑːs/",中文:"草"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"pass",音标:"/pɑːs/",中文:"通过；传递"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"glass",音标:"/ɡlɑːs/",中文:"玻璃；杯子"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"ask",音标:"/ɑːsk/",中文:"问"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"task",音标:"/tɑːsk/",中文:"任务"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"mask",音标:"/mɑːsk/",中文:"面具；口罩"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"test",音标:"/test/",中文:"测试"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"best",音标:"/best/",中文:"最好的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"west",音标:"/west/",中文:"西方；西部的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"nest",音标:"/nest/",中文:"鸟巢；窝"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"rest",音标:"/rest/",中文:"休息；剩余部分"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"vest",音标:"/vest/",中文:"背心"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"next",音标:"/nekst/",中文:"下一个；接下来"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"text",音标:"/tekst/",中文:"文本；课文"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"letter",音标:"/ˈletə/",中文:"信；字母"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"better",音标:"/ˈbetə/",中文:"更好的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"meter",音标:"/ˈmiːtə/",中文:"米"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"center",音标:"/ˈsentə/",中文:"中心"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"winter",音标:"/ˈwɪntə/",中文:"冬天"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"sister",音标:"/ˈsɪstə/",中文:"姐妹"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"brother",音标:"/ˈbrʌðə/",中文:"兄弟"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"mother",音标:"/ˈmʌðə/",中文:"妈妈"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"father",音标:"/ˈfɑːðə/",中文:"爸爸"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"teacher",音标:"/ˈtiːtʃə/",中文:"老师"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"doctor",音标:"/ˈdɒktə/",中文:"医生"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"worker",音标:"/ˈwɜːkə/",中文:"工人"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"farmer",音标:"/ˈfɑːmə/",中文:"农民"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"nurse",音标:"/nɜːs/",中文:"护士"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"horse",音标:"/hɔːs/",中文:"马"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"house",音标:"/haʊs/",中文:"房子"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"mouse",音标:"/maʊs/",中文:"老鼠"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"mouth",音标:"/maʊθ/",中文:"嘴"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"about",音标:"/əˈbaʊt/",中文:"关于；大约"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"out",音标:"/aʊt/",中文:"出去；外面"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"shout",音标:"/ʃaʊt/",中文:"喊叫"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"loud",音标:"/laʊd/",中文:"大声的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"proud",音标:"/praʊd/",中文:"骄傲的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"cloud",音标:"/klaʊd/",中文:"云"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"ground",音标:"/ɡraʊnd/",中文:"地面"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"round",音标:"/raʊnd/",中文:"圆的；围绕"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"found",音标:"/faʊnd/",中文:"找到；创立"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"sound",音标:"/saʊnd/",中文:"声音；听起来"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"count",音标:"/kaʊnt/",中文:"数；计数"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"point",音标:"/pɔɪnt/",中文:"点；指向"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"join",音标:"/dʒɔɪn/",中文:"加入"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"coin",音标:"/kɔɪn/",中文:"硬币"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"oil",音标:"/ɔɪl/",中文:"油"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"soil",音标:"/sɔɪl/",中文:"土壤"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"boil",音标:"/bɔɪl/",中文:"煮沸"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"toilet",音标:"/ˈtɔɪlət/",中文:"厕所"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"boy",音标:"/bɔɪ/",中文:"男孩"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"toy",音标:"/tɔɪ/",中文:"玩具"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"joy",音标:"/dʒɔɪ/",中文:"欢乐"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"enjoy",音标:"/ɪnˈdʒɔɪ/",中文:"享受；喜欢"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"noise",音标:"/nɔɪz/",中文:"噪音"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"voice",音标:"/vɔɪs/",中文:"声音；嗓音"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"choice",音标:"/tʃɔɪs/",中文:"选择"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"price",音标:"/praɪs/",中文:"价格"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"rice",音标:"/raɪs/",中文:"米饭"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"nice",音标:"/naɪs/",中文:"好的；漂亮的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"ice",音标:"/aɪs/",中文:"冰"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"nine",音标:"/naɪn/",中文:"九"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"fine",音标:"/faɪn/",中文:"好的；罚款"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"line",音标:"/laɪn/",中文:"线；排"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"mine",音标:"/maɪn/",中文:"我的；矿"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"shine",音标:"/ʃaɪn/",中文:"发光；照耀"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"time",音标:"/taɪm/",中文:"时间"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"kite",音标:"/kaɪt/",中文:"风筝"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"bite",音标:"/baɪt/",中文:"咬"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"write",音标:"/raɪt/",中文:"写"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"white",音标:"/waɪt/",中文:"白色的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"light",音标:"/laɪt/",中文:"光；轻的；灯"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"night",音标:"/naɪt/",中文:"夜晚"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"fight",音标:"/faɪt/",中文:"打架；战斗"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"high",音标:"/haɪ/",中文:"高的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"fly",音标:"/flaɪ/",中文:"飞；苍蝇"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"sky",音标:"/skaɪ/",中文:"天空"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"try",音标:"/traɪ/",中文:"尝试"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"cry",音标:"/kraɪ/",中文:"哭；喊"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"dry",音标:"/draɪ/",中文:"干的；使干燥"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"by",音标:"/baɪ/",中文:"通过；被；乘"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"why",音标:"/waɪ/",中文:"为什么"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"my",音标:"/maɪ/",中文:"我的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"shy",音标:"/ʃaɪ/",中文:"害羞的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"eye",音标:"/aɪ/",中文:"眼睛"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"see",音标:"/siː/",中文:"看见"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"bee",音标:"/biː/",中文:"蜜蜂"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"tree",音标:"/triː/",中文:"树"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"three",音标:"/θriː/",中文:"三"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"she",音标:"/ʃiː/",中文:"她"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"he",音标:"/hiː/",中文:"他"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"me",音标:"/miː/",中文:"我（宾格）"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"we",音标:"/wiː/",中文:"我们"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"be",音标:"/biː/",中文:"是"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"these",音标:"/ðiːz/",中文:"这些"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"those",音标:"/ðəʊz/",中文:"那些"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"evening",音标:"/ˈiːvnɪŋ/",中文:"晚上"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"green",音标:"/ɡriːn/",中文:"绿色的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"meet",音标:"/miːt/",中文:"遇见；会议"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"feet",音标:"/fiːt/",中文:"脚（复数）"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"teeth",音标:"/tiːθ/",中文:"牙齿（复数）"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"keep",音标:"/kiːp/",中文:"保持；保留"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"sleep",音标:"/sliːp/",中文:"睡觉"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"deep",音标:"/diːp/",中文:"深的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"week",音标:"/wiːk/",中文:"星期"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"weak",音标:"/wiːk/",中文:"弱的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"speak",音标:"/spiːk/",中文:"说；讲"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"clean",音标:"/kliːn/",中文:"干净的；打扫"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"mean",音标:"/miːn/",中文:"意思是；意味着"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"read",音标:"/riːd/",中文:"读（原形）"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"tea",音标:"/tiː/",中文:"茶"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"sea",音标:"/siː/",中文:"海"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"eat",音标:"/iːt/",中文:"吃"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"meat",音标:"/miːt/",中文:"肉"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"heat",音标:"/hiːt/",中文:"热；加热"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"beat",音标:"/biːt/",中文:"打败；拍打"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"seat",音标:"/siːt/",中文:"座位"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"east",音标:"/iːst/",中文:"东方；东部的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"least",音标:"/liːst/",中文:"最少的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"please",音标:"/pliːz/",中文:"请"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"easy",音标:"/ˈiːzi/",中文:"容易的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"busy",音标:"/ˈbɪzi/",中文:"忙的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"happy",音标:"/ˈhæpi/",中文:"高兴的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"sunny",音标:"/ˈsʌni/",中文:"晴朗的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"funny",音标:"/ˈfʌni/",中文:"有趣的；滑稽的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"many",音标:"/ˈmeni/",中文:"许多"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"any",音标:"/ˈeni/",中文:"任何；一些"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"penny",音标:"/ˈpeni/",中文:"便士"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"city",音标:"/ˈsɪti/",中文:"城市"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"baby",音标:"/ˈbeɪbi/",中文:"婴儿"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"family",音标:"/ˈfæməli/",中文:"家庭"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"party",音标:"/ˈpɑːti/",中文:"聚会"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"sorry",音标:"/ˈsɒri/",中文:"对不起；抱歉的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"story",音标:"/ˈstɔːri/",中文:"故事"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"forty",音标:"/ˈfɔːti/",中文:"四十"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"fifty",音标:"/ˈfɪfti/",中文:"五十"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"sixty",音标:"/ˈsɪksti/",中文:"六十"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"seventy",音标:"/ˈsevnti/",中文:"七十"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"eighty",音标:"/ˈeɪti/",中文:"八十"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"ninety",音标:"/ˈnaɪnti/",中文:"九十"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"twenty",音标:"/ˈtwenti/",中文:"二十"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"thirty",音标:"/ˈθɜːti/",中文:"三十"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"eleven",音标:"/ɪˈlevn/",中文:"十一"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"twelve",音标:"/twelv/",中文:"十二"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"thirteen",音标:"/ˌθɜːˈtiːn/",中文:"十三"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"fourteen",音标:"/ˌfɔːˈtiːn/",中文:"十四"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"fifteen",音标:"/ˌfɪfˈtiːn/",中文:"十五"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"sixteen",音标:"/ˌsɪksˈtiːn/",中文:"十六"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"seventeen",音标:"/ˌsevənˈtiːn/",中文:"十七"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"eighteen",音标:"/ˌeɪˈtiːn/",中文:"十八"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"nineteen",音标:"/ˌnaɪnˈtiːn/",中文:"十九"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"hundred",音标:"/ˈhʌndrəd/",中文:"百"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"thousand",音标:"/ˈθaʊznd/",中文:"千"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"million",音标:"/ˈmɪljən/",中文:"百万"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"billion",音标:"/ˈbɪljən/",中文:"十亿"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"first",音标:"/fɜːst/",中文:"第一"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"second",音标:"/ˈsekənd/",中文:"第二"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"third",音标:"/θɜːd/",中文:"第三"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"fourth",音标:"/fɔːθ/",中文:"第四"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"fifth",音标:"/fɪfθ/",中文:"第五"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"sixth",音标:"/sɪksθ/",中文:"第六"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"seventh",音标:"/ˈsevənθ/",中文:"第七"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"eighth",音标:"/eɪtθ/",中文:"第八"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"ninth",音标:"/naɪnθ/",中文:"第九"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"tenth",音标:"/tentθ/",中文:"第十"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"eleventh",音标:"/ɪˈlevnθ/",中文:"第十一"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"twelfth",音标:"/twelfθ/",中文:"第十二"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"thirteenth",音标:"/ˌθɜːˈtiːnθ/",中文:"第十三"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"fourteenth",音标:"/ˌfɔːˈtiːnθ/",中文:"第十四"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"fifteenth",音标:"/ˌfɪfˈtiːnθ/",中文:"第十五"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"sixteenth",音标:"/ˌsɪksˈtiːnθ/",中文:"第十六"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"seventeenth",音标:"/ˌsevənˈtiːnθ/",中文:"第十七"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"eighteenth",音标:"/ˌeɪˈtiːnθ/",中文:"第十八"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"nineteenth",音标:"/ˌnaɪnˈtiːnθ/",中文:"第十九"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"twentieth",音标:"/ˈtwentiəθ/",中文:"第二十"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"thirtieth",音标:"/ˈθɜːtiəθ/",中文:"第三十"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"fortieth",音标:"/ˈfɔːtiəθ/",中文:"第四十"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"fiftieth",音标:"/ˈfɪftiəθ/",中文:"第五十"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"sixtieth",音标:"/ˈsɪkstiəθ/",中文:"第六十"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"seventieth",音标:"/ˈsevntiəθ/",中文:"第七十"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"eightieth",音标:"/ˈeɪtiəθ/",中文:"第八十"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"ninetieth",音标:"/ˈnaɪntiəθ/",中文:"第九十"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"hundredth",音标:"/ˈhʌndrədθ/",中文:"第一百"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"one",音标:"/wʌn/",中文:"一"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"two",音标:"/tuː/",中文:"二"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"three",音标:"/θriː/",中文:"三"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"four",音标:"/fɔː/",中文:"四"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"five",音标:"/faɪv/",中文:"五"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"six",音标:"/sɪks/",中文:"六"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"seven",音标:"/ˈsevən/",中文:"七"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"eight",音标:"/eɪt/",中文:"八"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"nine",音标:"/naɪn/",中文:"九"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"ten",音标:"/ten/",中文:"十"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"book",音标:"/bʊk/",中文:"书"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"cook",音标:"/kʊk/",中文:"烹饪；厨师"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"look",音标:"/lʊk/",中文:"看"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"good",音标:"/ɡʊd/",中文:"好的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"foot",音标:"/fʊt/",中文:"脚"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"wood",音标:"/wʊd/",中文:"木头"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"would",音标:"/wʊd/",中文:"将；会"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"could",音标:"/kʊd/",中文:"能；可以"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"should",音标:"/ʃʊd/",中文:"应该"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"put",音标:"/pʊt/",中文:"放"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"cut",音标:"/kʌt/",中文:"切；割"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"but",音标:"/bʌt/",中文:"但是"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"nut",音标:"/nʌt/",中文:"坚果"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"bus",音标:"/bʌs/",中文:"公共汽车"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"cup",音标:"/kʌp/",中文:"杯子"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"up",音标:"/ʌp/",中文:"向上；上面"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"sun",音标:"/sʌn/",中文:"太阳"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"run",音标:"/rʌn/",中文:"跑"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"fun",音标:"/fʌn/",中文:"乐趣；有趣的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"gun",音标:"/ɡʌn/",中文:"枪"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"son",音标:"/sʌn/",中文:"儿子"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"ton",音标:"/tʌn/",中文:"吨"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"on",音标:"/ɒn/",中文:"在……上面"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"in",音标:"/ɪn/",中文:"在……里面"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"at",音标:"/æt/",中文:"在（某处）"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"it",音标:"/ɪt/",中文:"它"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"is",音标:"/ɪz/",中文:"是"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"his",音标:"/hɪz/",中文:"他的"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"this",音标:"/ðɪs/",中文:"这个"},
+            {版本:"人教版",年级:"四年级",册次:"上册",模块:"Module2",英文:"that",音标:"/ðæt/",中文:"那个"}
+        ];
+
+        function loadDefaultWords() {
+            wordList = defaultWordList.map(item => ({
+                version: item.版本,
+                grade: item.年级,
+                book: item.册次,
+                module: item.模块,
+                english: item.英文,
+                phonetic: item.音标.toString().replace(/\//g, ''),
+                chinese: item.中文
+            }));
+            initFilters();
+            setTimeout(() => {
+                setDefaultFilters();
+                if (document.getElementById("autoStart").checked) {
+                    autoStartTraining();
+                }
+            }, 300);
+        }
+
+        function autoStartTraining() {
+            if (wordList.length === 0) return;
+            let toTrainWords = [...wordList];
+            if (document.getElementById("skipMastered").checked) {
+                const requiredCount = parseInt(document.getElementById("masteryCount").value) || 1;
+                toTrainWords = toTrainWords.filter(word => 
+                    !masteredWords[word.english] || masteredWords[word.english] < requiredCount
+                );
+                if (toTrainWords.length === 0) {
+                    document.getElementById("tip").textContent = "🎉 所有单词已掌握！";
+                    document.getElementById("tip").style.color = "green";
+                    return;
+                }
+            }
+            if (document.getElementById("randomOrder").checked) {
+                toTrainWords = shuffleArray(toTrainWords);
+            }
+            currentWords = toTrainWords;
+            startTrain();
+            document.getElementById("tip").textContent = 
+                `🤖 自动开始训练：共${currentWords.length}题`;
+            document.getElementById("tip").style.color = "blue";
+        }
+
+        function shuffleArray(array) {
+            const newArray = [...array];
+            for (let i = newArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+            }
+            return newArray;
+        }
+
+        function saveMasteredWord(word) {
+            if (!document.getElementById("skipMastered").checked) return;
+            const requiredCount = parseInt(document.getElementById("masteryCount").value) || 1;
+            masteredWords[word.english] = (masteredWords[word.english] || 0) + 1;
+            localStorage.setItem("masteredWords", JSON.stringify(masteredWords));
+        }
+
+        function loadMasteredWords() {
+            const data = localStorage.getItem("masteredWords");
+            masteredWords = data ? JSON.parse(data) : {};
+        }
+
+        function clearMasteredWords() {
+            if (!confirm("确定清空已掌握单词列表？")) return;
+            localStorage.removeItem("masteredWords");
+            masteredWords = {};
+            alert("✅ 已掌握单词列表已清空");
+        }
+
+        function initVoice() {
+            if (!synth) {
+                alert("浏览器不支持语音合成");
+                return;
+            }
+        }
+
+        function initLetters() {
+            let select = document.getElementById("cboLetter");
+            for (let i = 65; i <= 90; i++) {
+                let opt = document.createElement("option");
+                opt.value = String.fromCharCode(i);
+                opt.textContent = String.fromCharCode(i);
+                select.appendChild(opt);
+            }
+        }
+
+        function getSafeValue(val) {
+            return (val ?? "").toString().trim();
+        }
+
+        function loadExcel() {
+            let fileInput = document.getElementById("excelFile");
+            if (!fileInput.files[0]) {
+                alert("请选择Excel文件");
+                return;
+            }
+            let reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    let data = new Uint8Array(e.target.result);
+                    let workbook = XLSX.read(data, { type: 'array' });
+                    let sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    let json = XLSX.utils.sheet_to_json(sheet);
+                    wordList = [];
+                    json.forEach(row => {
+                        let english = getSafeValue(row.英文);
+                        if (english === "") return;
+                        wordList.push({
+                            version: getSafeValue(row.版本),
+                            grade: getSafeValue(row.年级),
+                            book: getSafeValue(row.册次),
+                            module: getSafeValue(row.模块),
+                            english: english,
+                            phonetic: getSafeValue(row.音标),
+                            chinese: getSafeValue(row.中文)
+                        });
+                    });
+                    document.getElementById("loadTip").textContent = `✅ 手动加载成功：共${wordList.length}个单词`;
+                    initFilters();
+                    setTimeout(() => {
+                        setDefaultFilters();
+                        if (document.getElementById("autoStart").checked) {
+                            autoStartTraining();
+                        }
+                    }, 300);
+                } catch (err) {
+                    alert("Excel读取失败：" + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(fileInput.files[0]);
+        }
+
+        function reloadData() {
+            initFilters();
+            loadWrongWords();
+            document.getElementById("question").textContent = "等待开始训练";
+            document.getElementById("phonetic").textContent = "";
+            document.getElementById("inputAnswer").value = "";
+            document.getElementById("loadTip").textContent = "单词库已刷新";
+            document.getElementById("progress").textContent = "进度：0/0";
+        }
+
+        function initFilters() {
+            let versionSel = document.getElementById("cboVersion");
+            versionSel.innerHTML = "";
+            let versions = [...new Set(wordList.map(w => w.version))].sort();
+            versions.forEach(v => {
+                let opt = document.createElement("option");
+                opt.value = v;
+                opt.textContent = v;
+                versionSel.appendChild(opt);
+            });
+            if (versions.length > 0) {
+                versionSel.selectedIndex = 0;
+                loadGrades();
+            }
+        }
+
+        function setDefaultFilters() {
+            let versionSel = document.getElementById("cboVersion");
+            if (versionSel.options.length > 0) {
+                versionSel.selectedIndex = 0;
+                loadGrades();
+                setTimeout(() => {
+                    let gradeSel = document.getElementById("cboGrade");
+                    if (gradeSel.options.length > 0) {
+                        gradeSel.selectedIndex = 0;
+                        loadBooks();
+                        setTimeout(() => {
+                            let bookSel = document.getElementById("cboBook");
+                            if (bookSel.options.length > 0) {
+                                bookSel.selectedIndex = 0;
+                                loadModules();
+                                setTimeout(() => {
+                                    let moduleSel = document.getElementById("cboModule");
+                                    if (moduleSel.options.length > 0) {
+                                        moduleSel.selectedIndex = 0;
+                                        document.getElementById("btnFilter").disabled = false;
+                                    }
+                                }, 100);
+                            }
+                        }, 100);
+                    }
+                }, 100);
+            }
+        }
+
+        function loadGrades() {
+            let version = document.getElementById("cboVersion").value;
+            let gradeSel = document.getElementById("cboGrade");
+            gradeSel.innerHTML = "";
+            gradeSel.disabled = true;
+            let grades = [...new Set(wordList.filter(w => w.version === version).map(w => w.grade))].sort();
+            grades.forEach(g => {
+                let opt = document.createElement("option");
+                opt.value = g;
+                opt.textContent = g;
+                gradeSel.appendChild(opt);
+            });
+            if (grades.length > 0) {
+                gradeSel.disabled = false;
+                gradeSel.selectedIndex = 0;
+                loadBooks();
+            }
+        }
+
+        function loadBooks() {
+            let version = document.getElementById("cboVersion").value;
+            let grade = document.getElementById("cboGrade").value;
+            let bookSel = document.getElementById("cboBook");
+            bookSel.innerHTML = "";
+            bookSel.disabled = true;
+            let books = [...new Set(wordList.filter(w => w.version === version && w.grade === grade).map(w => w.book))].sort();
+            books.forEach(b => {
+                let opt = document.createElement("option");
+                opt.value = b;
+                opt.textContent = b;
+                bookSel.appendChild(opt);
+            });
+            if (books.length > 0) {
+                bookSel.disabled = false;
+                bookSel.selectedIndex = 0;
+                loadModules();
+            }
+        }
+
+        function loadModules() {
+            let version = document.getElementById("cboVersion").value;
+            let grade = document.getElementById("cboGrade").value;
+            let book = document.getElementById("cboBook").value;
+            let moduleSel = document.getElementById("cboModule");
+            moduleSel.innerHTML = "";
+            moduleSel.disabled = true;
+            let modules = [...new Set(wordList.filter(w => w.version === version && w.grade === grade && w.book === book).map(w => w.module))].sort();
+            modules.forEach(m => {
+                let opt = document.createElement("option");
+                opt.value = m;
+                opt.textContent = m;
+                moduleSel.appendChild(opt);
+            });
+            if (modules.length > 0) {
+                moduleSel.disabled = false;
+                moduleSel.selectedIndex = 0;
+                document.getElementById("btnFilter").disabled = false;
+            }
+        }
+
+        function filterWords() {
+            let version = document.getElementById("cboVersion").value;
+            let grade = document.getElementById("cboGrade").value;
+            let book = document.getElementById("cboBook").value;
+            let module = document.getElementById("cboModule").value;
+            currentWords = wordList.filter(w => w.version === version && w.grade === grade && w.book === book && w.module === module);
+            if (document.getElementById("randomOrder").checked) {
+                currentWords = shuffleArray(currentWords);
+            }
+            if (document.getElementById("skipMastered").checked) {
+                const requiredCount = parseInt(document.getElementById("masteryCount").value) || 1;
+                currentWords = currentWords.filter(word => !masteredWords[word.english] || masteredWords[word.english] < requiredCount);
+            }
+            if (currentWords.length === 0) {
+                alert("无匹配单词");
+                return;
+            }
+            startTrain();
+        }
+
+        function filterByLetter() {
+            let letter = document.getElementById("cboLetter").value.toLowerCase();
+            currentWords = wordList.filter(w => w.english.toLowerCase().startsWith(letter));
+            if (document.getElementById("randomOrder").checked) {
+                currentWords = shuffleArray(currentWords);
+            }
+            if (document.getElementById("skipMastered").checked) {
+                const requiredCount = parseInt(document.getElementById("masteryCount").value) || 1;
+                currentWords = currentWords.filter(word => !masteredWords[word.english] || masteredWords[word.english] < requiredCount);
+            }
+            if (currentWords.length === 0) {
+                alert("无匹配单词");
+                return;
+            }
+            startTrain();
+        }
+
+        function trainAllWords() {
+            if (wordList.length === 0) {
+                alert("请先导入单词");
+                return;
+            }
+            currentWords = [...wordList];
+            if (document.getElementById("randomOrder").checked) {
+                currentWords = shuffleArray(currentWords);
+            }
+            if (document.getElementById("skipMastered").checked) {
+                const requiredCount = parseInt(document.getElementById("masteryCount").value) || 1;
+                currentWords = currentWords.filter(word => !masteredWords[word.english] || masteredWords[word.english] < requiredCount);
+            }
+            startTrain();
+        }
+
+        function startTrain() {
+            currentIndex = 0;
+            score = 0;
+            updateScore();
+            updateProgress();
+            document.getElementById("inputAnswer").disabled = false;
+            document.getElementById("btnCheck").disabled = false;
+            document.getElementById("btnNext").disabled = false;
+            document.getElementById("btnShow").disabled = false;
+            document.getElementById("btnSpeak").disabled = false;
+            showCurrentWord();
+        }
+
+        function updateProgress() {
+            document.getElementById("progress").textContent = `进度：${currentIndex + 1}/${currentWords.length}`;
+        }
+
+        function showCurrentWord() {
+            if (autoNextTimer) clearTimeout(autoNextTimer);
+            if (currentIndex >= currentWords.length) {
+                alert(`训练完成！得分：${score}/${currentWords.length}`);
+                disableTrainBtns();
+                document.getElementById("question").textContent = "训练完成";
+                document.getElementById("phonetic").textContent = "";
+                return;
+            }
+            updateProgress();
+            let word = currentWords[currentIndex];
+            let mode = document.getElementById("cboMode").value;
+            document.getElementById("tip").textContent = "";
+            if (mode === "zhong") {
+                document.getElementById("question").textContent = `【中译英】${word.chinese}`;
+                document.getElementById("phonetic").textContent = "";
+            } else {
+                document.getElementById("question").textContent = `【英译中】${word.english}`;
+                document.getElementById("phonetic").textContent = word.phonetic ? `音标：${word.phonetic}` : "";
+            }
+            document.getElementById("inputAnswer").value = "";
+            document.getElementById("inputAnswer").focus();
+            document.getElementById("btnCheck").disabled = false;
+        }
+
+        function checkAnswer() {
+            let input = document.getElementById("inputAnswer").value.trim().toLowerCase();
+            if (!input) {
+                alert("请输入答案");
+                return;
+            }
+            let word = currentWords[currentIndex];
+            let mode = document.getElementById("cboMode").value;
+            let answer = mode === "zhong" ? word.english.toLowerCase() : word.chinese.toLowerCase();
+            if (input === answer) {
+                document.getElementById("tip").textContent = "✅ 回答正确！";
+                document.getElementById("tip").style.color = "green";
+                score++;
+                updateScore();
+                saveMasteredWord(word);
+                if (document.getElementById("autoNext").checked) {
+                    autoNextTimer = setTimeout(() => nextWord(), 1500);
+                }
+            } else {
+                document.getElementById("tip").textContent = `❌ 错误！答案：${mode === "zhong" ? word.english : word.chinese}`;
+                document.getElementById("tip").style.color = "red";
+                saveWrongWord(word);
+            }
+            document.getElementById("btnCheck").disabled = true;
+        }
+
+        function nextWord() {
+            currentIndex++;
+            showCurrentWord();
+        }
+
+        function showAnswer() {
+            if (autoNextTimer) clearTimeout(autoNextTimer);
+            let word = currentWords[currentIndex];
+            let mode = document.getElementById("cboMode").value;
+            document.getElementById("tip").textContent = `答案：${mode === "zhong" ? word.english : word.chinese}`;
+            document.getElementById("tip").style.color = "darkblue";
+            saveWrongWord(word);
+            document.getElementById("btnCheck").disabled = true;
+        }
+
+        function speakWord() {
+            let word = currentWords[currentIndex].english;
+            let utterance = new SpeechSynthesisUtterance(word);
+            utterance.lang = "en-US";
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function trainWrongWords() {
+            if (wrongWords.length === 0) {
+                alert("错题本为空");
+                return;
+            }
+            currentWords = [...wrongWords];
+            if (document.getElementById("randomOrder").checked) {
+                currentWords = shuffleArray(currentWords);
+            }
+            startTrain();
+        }
+
+        function saveWrongWord(word) {
+            if (!wrongWords.some(w => w.english === word.english)) {
+                wrongWords.push(word);
+                localStorage.setItem("wrongWords", JSON.stringify(wrongWords));
+                document.getElementById("btnTrainWrong").disabled = false;
+            }
+        }
+
+        function loadWrongWords() {
+            let data = localStorage.getItem("wrongWords");
+            wrongWords = data ? JSON.parse(data) : [];
+            document.getElementById("btnTrainWrong").disabled = wrongWords.length === 0;
+        }
+
+        function autoAddDemoWords() {
+            const words = [
+                {版本:"人教版",年级:"四年级",册次:"上册",模块:"Auto",英文:"dog",音标:"/dɒɡ/",中文:"狗"},
+                {版本:"人教版",年级:"四年级",册次:"上册",模块:"Auto",英文:"cat",音标:"/kæt/",中文:"猫"}
+            ];
+            wordList.push(...words.map(w => ({
+                version: w.版本, grade: w.年级, book: w.册次, module: w.模块,
+                english: w.英文, phonetic: w.音标.replace(/\//g,''), chinese: w.中文
+            })));
+            initFilters();
+            alert("添加成功！");
+        }
+
+        function clearWrongWords() {
+            if (!confirm("确定清空错题本？")) return;
+            localStorage.removeItem("wrongWords");
+            wrongWords = [];
+            document.getElementById("btnTrainWrong").disabled = true;
+            alert("✅ 错题本已清空");
+        }
+
+        function updateScore() {
+            document.getElementById("score").textContent = `得分：${score}`;
+        }
+
+        function disableTrainBtns() {
+            document.getElementById("btnCheck").disabled = true;
+            document.getElementById("btnNext").disabled = true;
+            document.getElementById("btnShow").disabled = true;
+            document.getElementById("btnSpeak").disabled = true;
+            document.getElementById("inputAnswer").disabled = true;
+        }
+    </script>
 </body>
 </html>
