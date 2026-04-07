@@ -150,10 +150,6 @@
             display: none;
         }
     </style>
-    <!-- 引入二维码库 -->
-    <script src="https://cdn.bootcdn.net/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-</head>
-<body>
     <div class="container">
         <h2>临时停车-付费1元解锁挪车拨号</h2>
 
@@ -257,6 +253,20 @@
             });
         }
     </script>
+<!-- 加到 TwoCode.html 的 body 末尾 -->
+<button style="
+    padding:10px 20px;
+    background:#2ea44f;
+    color:white;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    margin-top:30px;
+" onclick="window.location.href='/'">返回导航主页</button>
+    <!-- 引入二维码库 -->
+    <script src="https://cdn.bootcdn.net/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
 </body>
 </html>             
         
