@@ -22,9 +22,7 @@
             margin-top: 80px;
         }
         h2 { margin-bottom: 25px; font-size: 24px; color: #333; }
-        .input-box {
-            margin-bottom: 20px;
-        }
+        .input-box { margin-bottom: 20px; }
         #userPhone {
             width: 100%;
             padding: 14px;
@@ -34,9 +32,7 @@
             text-align: center;
             outline: none;
         }
-        #userPhone:focus {
-            border-color: #0088ff;
-        }
+        #userPhone:focus { border-color: #0088ff; }
         .pay-box {
             padding: 20px;
             border: 2px dashed #07c160;
@@ -106,6 +102,17 @@
             cursor:pointer;
             margin-top:30px;
         }
+        /* 开发者按钮：默认隐藏，你点5次页面标题显示 */
+        .dev-btn {
+            display: none;
+            padding: 10px 20px;
+            background: #07c160;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
@@ -117,7 +124,7 @@
 </nav>
 
 <div class="container">
-    <h2>临时停车-付费1元解锁挪车拨号</h2>
+    <h2 id="pageTitle">临时停车-付费1元解锁挪车拨号</h2>
 
     <!-- 第一步：输入手机号 -->
     <div class="input-box">
@@ -148,18 +155,34 @@
         </div>
     </div>
 
+    <!-- 开发者确认按钮（默认隐藏，你点标题5次显示） -->
+    <button class="dev-btn" id="confirmBtn">✅ 确认收款，生成挪车码</button>
+
     <button class="back-btn" onclick="window.location.href='/'">返回主页</button>
 </div>
 
 <script src="https://cdn.bootcdn.net/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
-    // 全局保存用户输入的手机号
     let userPhone = "";
+    let clickCount = 0; // 标题点击计数
 
     // =========================================
-    // 开发者确认收款 → 自动生成该用户的挪车二维码
-    // 你只需要：F12 → 控制台 → 输入 confirmPay()
+    // 1. 你点标题5次 → 显示“确认收款”按钮
     // =========================================
+    document.getElementById("pageTitle").addEventListener("click", function () {
+        clickCount++;
+        if (clickCount >= 5) {
+            document.getElementById("confirmBtn").style.display = "block";
+            clickCount = 0; // 重置计数
+            alert("✅ 开发者按钮已显示，确认收款请点击");
+        }
+    });
+
+    // =========================================
+    // 2. 你点按钮 → 自动生成该用户手机号的挪车码
+    // =========================================
+    document.getElementById("confirmBtn").addEventListener("click", confirmPay);
+
     function confirmPay() {
         userPhone = document.getElementById("userPhone").value.trim();
         const reg = /^1[3-9]\d{9}$/;
