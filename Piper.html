@@ -10,12 +10,15 @@
         .container { width: 98%; margin: 10px auto; }
         #piperChart { width: 100%; height: 600px; border: 1px solid #eee; }
         .btn-group { margin: 10px 0; }
-        .btn-group button {
+        .btn-group button, .import-btn {
             padding: 8px 15px; margin-right: 5px;
             border: 1px solid #ccc; border-radius: 4px;
             background: #f8f8f8; cursor: pointer;
+            display: inline-block;
         }
-        .btn-group button:hover { background: #e8e8e8; }
+        .btn-group button:hover, .import-btn:hover { background: #e8e8e8; }
+        /* 隐藏原生文件输入框 */
+        #excelFile { display: none; }
         #dataTable {
             width: 100%; border-collapse: collapse; margin: 10px 0;
         }
@@ -49,6 +52,25 @@
         .btn-save { background: #007bff; color: #fff; }
         .btn-cancel { background: #6c757d; color: #fff; }
         .error-tip { color: #dc3545; font-size: 12px; margin-top: 5px; display: none; }
+        /* 导入提示弹窗 */
+        .import-modal {
+            display: none; position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); background: #fff;
+            padding: 20px; border-radius: 8px; z-index: 1000;
+            box-shadow: 0 0 15px rgba(0,0,0,0.3);
+            max-width: 500px;
+        }
+        .import-modal h4 { margin-top: 0; }
+        .import-modal .error-list {
+            max-height: 200px; overflow-y: auto;
+            margin: 10px 0; padding-left: 20px;
+            color: #dc3545;
+        }
+        .import-modal-btns { text-align: center; margin-top: 15px; }
+        .import-modal-btns button {
+            padding: 8px 20px; margin: 0 5px;
+            border: none; border-radius: 4px; cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -57,6 +79,8 @@
         <div id="piperChart"></div>
         <div class="btn-group">
             <button id="addRegion">添加分区数据</button>
+            <label class="import-btn" for="excelFile">从EXCEL导入</label>
+            <input type="file" id="excelFile" accept=".xlsx,.xls">
             <button id="addRegionLabel">添加分区标注</button>
             <button id="delRegionLabel">删除分区标注</button>
             <button id="exportChart">导出三线图</button>
@@ -100,6 +124,16 @@
                 <button class="btn-cancel" onclick="closeModal()">取消</button>
                 <button class="btn-save" onclick="saveData()">保存</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Excel导入提示弹窗 -->
+    <div class="import-modal" id="importModal">
+        <h4 id="importTitle">Excel导入结果</h4>
+        <div id="importMsg">导入中...</div>
+        <div class="error-list" id="importErrorList"></div>
+        <div class="import-modal-btns">
+            <button onclick="closeImportModal()">确定</button>
         </div>
     </div>
 
@@ -487,9 +521,126 @@
             }
         }
 
-        // 8. 按钮绑定
+        // 8. Excel导入核心函数
+        function importExcel(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    // 解析Excel文件
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    // 读取第一个工作表
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    // 转换为JSON（表头匹配：序号、Ca²+、Mg²+、Na++K+、HCO₃⁻+CO₃²⁻、SO₄²⁻、Cl⁻）
+                    const excelData = XLSX.utils.sheet_to_json(worksheet, { header: ['id', 'Ca', 'Mg', 'NaK', 'HCO3CO3', 'SO4', 'Cl'] });
+                    
+                    // 过滤表头行，处理数据
+                    const importList = [];
+                    const errorList = [];
+                    excelData.forEach((row, index) => {
+                        // 跳过表头行（第一行）
+                        if (index === 0) return;
+                        // 空行跳过
+                        if (!row.id && !row.Ca && !row.Mg && !row.NaK && !row.HCO3CO3 && !row.SO4 && !row.Cl) return;
+
+                        // 类型转换
+                        const id = parseInt(row.id) || 0;
+                        const Ca = parseFloat(row.Ca) || 0;
+                        const Mg = parseFloat(row.Mg) || 0;
+                        const NaK = parseFloat(row.NaK) || 0;
+                        const HCO3CO3 = parseFloat(row.HCO3CO3) || 0;
+                        const SO4 = parseFloat(row.SO4) || 0;
+                        const Cl = parseFloat(row.Cl) || 0;
+
+                        // 数据校验
+                        const cationSum = Ca + Mg + NaK;
+                        const anionSum = HCO3CO3 + SO4 + Cl;
+                        const isRowValid = Math.abs(cationSum - 100) <= 0.1 && Math.abs(anionSum - 100) <= 0.1;
+
+                        if (isRowValid) {
+                            importList.push({ id, Ca, Mg, NaK, HCO3CO3, SO4, Cl });
+                        } else {
+                            errorList.push(`第${index+1}行：阳离子总和${cationSum.toFixed(2)}%，阴离子总和${anionSum.toFixed(2)}%（需均为100%）`);
+                        }
+                    });
+
+                    // 显示导入结果
+                    const importTitle = document.getElementById('importTitle');
+                    const importMsg = document.getElementById('importMsg');
+                    const importErrorList = document.getElementById('importErrorList');
+                    
+                    if (importList.length > 0) {
+                        // 询问是否覆盖原有数据
+                        const isCover = confirm(`成功解析${importList.length}条有效数据，是否覆盖原有数据？（取消则追加）`);
+                        if (isCover) {
+                            piperData = importList;
+                            // 重新排序ID
+                            piperData.forEach((item, idx) => { item.id = idx + 1; });
+                            importTitle.innerText = 'Excel导入成功';
+                            importMsg.innerText = `已覆盖原有数据，共导入${importList.length}条有效数据`;
+                        } else {
+                            // 追加数据，重新生成ID
+                            const maxId = piperData.length > 0 ? Math.max(...piperData.map(item => item.id)) : 0;
+                            importList.forEach((item, idx) => {
+                                item.id = maxId + idx + 1;
+                                piperData.push(item);
+                            });
+                            importTitle.innerText = 'Excel导入成功';
+                            importMsg.innerText = `已追加${importList.length}条有效数据，当前总数据量：${piperData.length}条`;
+                        }
+                        // 更新图表和表格
+                        updateChartData();
+                        renderTable();
+                    } else {
+                        importTitle.innerText = 'Excel导入失败';
+                        importMsg.innerText = '未解析到有效数据，请检查Excel格式！';
+                    }
+
+                    // 显示错误信息
+                    importErrorList.innerHTML = '';
+                    if (errorList.length > 0) {
+                        importErrorList.innerHTML = errorList.map(err => `<li>${err}</li>`).join('');
+                    }
+
+                    // 打开导入结果弹窗
+                    document.getElementById('importModal').style.display = 'block';
+                } catch (err) {
+                    console.error('Excel解析失败：', err);
+                    document.getElementById('importTitle').innerText = 'Excel导入异常';
+                    document.getElementById('importMsg').innerText = '解析失败：' + err.message;
+                    document.getElementById('importErrorList').innerHTML = '';
+                    document.getElementById('importModal').style.display = 'block';
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // 关闭导入结果弹窗
+        function closeImportModal() {
+            document.getElementById('importModal').style.display = 'none';
+            // 清空文件输入框
+            document.getElementById('excelFile').value = '';
+        }
+
+        // 9. 按钮绑定
         document.getElementById('addRegion').addEventListener('click', () => {
             openModal(); // 打开新增弹窗
+        });
+
+        // Excel导入按钮绑定
+        document.getElementById('excelFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                // 校验文件格式
+                const ext = file.name.split('.').pop().toLowerCase();
+                if (ext !== 'xlsx' && ext !== 'xls') {
+                    alert('请上传.xlsx或.xls格式的Excel文件！');
+                    this.value = '';
+                    return;
+                }
+                importExcel(file);
+            }
         });
 
         document.getElementById('addRegionLabel').addEventListener('click', () => {
@@ -517,7 +668,7 @@
             XLSX.writeFile(wb, 'Piper三线图数据.xlsx');
         });
 
-        // 9. 页面初始化
+        // 10. 页面初始化
         window.onload = function() {
             initChart();
             renderTable();
