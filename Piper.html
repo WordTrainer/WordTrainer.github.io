@@ -2,73 +2,37 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>地下水三线图分析</title>
-    <!-- 引入ECharts核心库 -->
+    <title>地下水 Piper 三线图分析</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
-    <!-- 引入jQuery（用于表格和按钮交互） -->
     <script src="https://cdn.jsdelivr.net/npm/jquery/dist/jquery.min.js"></script>
-    <!-- 引入SheetJS（用于Excel导出） -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <style>
-        /* 整体布局样式 */
-        .container {
-            width: 95%;
-            margin: 20px auto;
+        .container { width: 98%; margin: 10px auto; }
+        #piperChart { width: 100%; height: 600px; border: 1px solid #eee; }
+        .btn-group { margin: 10px 0; }
+        .btn-group button {
+            padding: 8px 15px; margin-right: 5px;
+            border: 1px solid #ccc; border-radius: 4px;
+            background: #f8f8f8; cursor: pointer;
         }
-        /* 图表容器 */
-        #tripleChart {
-            width: 100%;
-            height: 500px;
-            border: 1px solid #eee;
-            margin-bottom: 10px;
-        }
-        /* 数据表格样式 */
+        .btn-group button:hover { background: #e8e8e8; }
         #dataTable {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 10px;
+            width: 100%; border-collapse: collapse; margin: 10px 0;
         }
         #dataTable th, #dataTable td {
-            border: 1px solid #ccc;
-            padding: 8px;
-            text-align: center;
+            border: 1px solid #ccc; padding: 8px; text-align: center;
         }
-        #dataTable th {
-            background-color: #f2f2f2;
-        }
-        #dataTable tr.selected {
-            background-color: #cce5ff;
-        }
-        /* 按钮组样式 */
-        .btn-group {
-            margin-bottom: 10px;
-        }
-        .btn-group button {
-            padding: 8px 15px;
-            margin-right: 5px;
-            cursor: pointer;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            background-color: #f8f8f8;
-        }
-        .btn-group button:hover {
-            background-color: #e8e8e8;
-        }
-        /* 数据详情面板 */
+        #dataTable th { background: #f2f2f2; }
         #dataDetail {
-            border: 1px solid #ccc;
-            padding: 10px;
-            min-height: 120px;
-            background-color: #f9f9f9;
+            border: 1px solid #ccc; padding: 10px; min-height: 80px;
+            background: #f9f9f9;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h2 style="text-align: center;">地下水三线图分析</h2>
-        <!-- 三线图容器 -->
-        <div id="tripleChart"></div>
-        <!-- 操作按钮组 -->
+        <div id="piperChart"></div>
         <div class="btn-group">
             <button id="addRegion">添加分区数据</button>
             <button id="addRegionLabel">添加分区标注</button>
@@ -77,131 +41,366 @@
             <button id="exportDGV">输出到DGV</button>
             <button id="exportExcel">输出到EXCEL</button>
         </div>
-        <!-- 数据表格 -->
         <table id="dataTable">
             <thead>
                 <tr>
-                    <th>序号</th>
-                    <th>Ca2+</th>
-                    <th>Mg2+</th>
-                    <th>Na+</th>
-                    <th>K+</th>
-                    <th>HCO3-</th>
-                    <th>SO4²-</th>
-                    <th>Cl-</th>
+                    <th>序号</th><th>Ca²+</th><th>Mg²+</th><th>Na++K+</th>
+                    <th>HCO₃⁻+CO₃²⁻</th><th>SO₄²⁻</th><th>Cl⁻</th>
                 </tr>
             </thead>
-            <tbody>
-                <!-- 表格数据由JS动态填充 -->
-            </tbody>
+            <tbody></tbody>
         </table>
-        <!-- 数据详情面板 -->
         <div id="dataDetail"></div>
     </div>
 
     <script>
-        // 1. 初始化示例数据（与效果图匹配）
-        const sampleData = [
-            { 序号: 1, Ca2p: 10.28, Mg2p: 6.05, Nap: 43.85, Kp: 10.95, HCO3n: 14.08, SO42n: 79.27, Cln: 6.65 },
-            { 序号: 2, Ca2p: 273.96, Mg2p: 33.41, Nap: 43.85, Kp: 10.95, HCO3n: 14.08, SO42n: 79.27, Cln: 6.65 },
-            { 序号: 3, Ca2p: 83.86, Mg2p: 6.66, Nap: 43.85, Kp: 10.95, HCO3n: 14.08, SO42n: 79.27, Cln: 6.65 },
-            { 序号: 4, Ca2p: 199.48, Mg2p: 13.92, Nap: 43.85, Kp: 10.95, HCO3n: 14.08, SO42n: 79.27, Cln: 6.65 },
-            { 序号: 5, Ca2p: 157.55, Mg2p: 24.33, Nap: 43.85, Kp: 10.95, HCO3n: 14.08, SO42n: 79.27, Cln: 6.65 },
-            { 序号: 6, Ca2p: 59.7, Mg2p: 45.2, Nap: 43.85, Kp: 10.95, HCO3n: 14.08, SO42n: 79.27, Cln: 6.65 },
-            { 序号: 7, Ca2p: 93.4, Mg2p: 21.7, Nap: 43.85, Kp: 10.95, HCO3n: 14.08, SO42n: 79.27, Cln: 6.65 }
+        // 1. 标准Piper三线图数据（匹配效果图1的10个数据点）
+        const piperData = [
+            { id: 1, Ca: 10.28, Mg: 6.05, NaK: 83.67, HCO3CO3: 14.08, SO4: 79.27, Cl: 6.65 },
+            { id: 2, Ca: 20.15, Mg: 12.30, NaK: 67.55, HCO3CO3: 18.25, SO4: 72.10, Cl: 9.65 },
+            { id: 3, Ca: 8.39, Mg: 6.66, NaK: 84.95, HCO3CO3: 12.10, SO4: 80.50, Cl: 7.40 },
+            { id: 4, Ca: 19.95, Mg: 13.92, NaK: 66.13, HCO3CO3: 15.30, SO4: 75.80, Cl: 8.90 },
+            { id: 5, Ca: 15.76, Mg: 24.33, NaK: 59.91, HCO3CO3: 10.80, SO4: 82.50, Cl: 6.70 },
+            { id: 6, Ca: 5.97, Mg: 45.20, NaK: 48.83, HCO3CO3: 9.50, SO4: 85.20, Cl: 5.30 },
+            { id: 7, Ca: 9.34, Mg: 21.70, NaK: 68.96, HCO3CO3: 13.20, SO4: 78.50, Cl: 8.30 },
+            { id: 8, Ca: 12.50, Mg: 18.40, NaK: 69.10, HCO3CO3: 11.80, SO4: 81.20, Cl: 7.00 },
+            { id: 9, Ca: 7.80, Mg: 10.50, NaK: 81.70, HCO3CO3: 16.50, SO4: 76.30, Cl: 7.20 },
+            { id:10, Ca: 6.50, Mg: 8.80, NaK: 84.70, HCO3CO3: 14.80, SO4: 79.80, Cl: 5.40 }
         ];
 
-        // 2. 初始化ECharts图表
-        const chartDom = document.getElementById('tripleChart');
+        // 2. Piper三线图坐标转换核心函数（百分比投影）
+        /**
+         * 左侧阳离子三角坐标转换（Ca²+、Mg²+、Na++K+）
+         * @param {number} Ca - Ca²+百分比
+         * @param {number} Mg - Mg²+百分比
+         * @param {number} NaK - Na++K+百分比
+         * @returns {Array} [x, y] 画布坐标
+         */
+        function cationTriCoord(Ca, Mg, NaK) {
+            const baseX = 0.2; // 左三角起始X
+            const baseY = 1.0; // 左三角底部Y
+            const sideLen = 1.0; // 三角边长
+            // 三角坐标公式（等边三角形投影）
+            const x = baseX + sideLen * (NaK/100 + Mg/200);
+            const y = baseY - sideLen * (Math.sqrt(3)/2) * (Mg/100);
+            return [x, y];
+        }
+
+        /**
+         * 右侧阴离子三角坐标转换（HCO3CO3、SO4、Cl）
+         * @param {number} HCO3CO3 - 碳酸氢根+碳酸根百分比
+         * @param {number} SO4 - 硫酸根百分比
+         * @param {number} Cl - 氯离子百分比
+         * @returns {Array} [x, y] 画布坐标
+         */
+        function anionTriCoord(HCO3CO3, SO4, Cl) {
+            const baseX = 1.8; // 右三角起始X
+            const baseY = 1.0; // 右三角底部Y
+            const sideLen = 1.0; // 三角边长
+            const x = baseX - sideLen * (Cl/100 + SO4/200);
+            const y = baseY - sideLen * (Math.sqrt(3)/2) * (SO4/100);
+            return [x, y];
+        }
+
+        /**
+         * 中间菱形坐标转换（左右三角投影）
+         * @param {Array} cationXY - 左三角坐标 [x,y]
+         * @param {Array} anionXY - 右三角坐标 [x,y]
+         * @returns {Array} [x, y] 菱形坐标
+         */
+        function diamondCoord(cationXY, anionXY) {
+            const leftTriRightX = 1.2; // 左三角右顶点X
+            const rightTriLeftX = 1.2; // 右三角左顶点X
+            const diamondBaseY = 0.2;  // 菱形底部Y偏移
+            // 投影计算
+            const x = leftTriRightX + (anionXY[0] - rightTriLeftX) * 0.8;
+            const y = diamondBaseY + (cationXY[1] + anionXY[1]) / 2;
+            return [x, y];
+        }
+
+        // 3. 初始化ECharts图表
+        const chartDom = document.getElementById('piperChart');
         const myChart = echarts.init(chartDom);
-        
-        // 三线图核心配置
+
+        // 预处理所有数据点坐标
+        const cationPoints = [];   // 左三角数据点
+        const anionPoints = [];    // 右三角数据点
+        const diamondPoints = [];  // 中间菱形数据点
+        piperData.forEach(item => {
+            // 左三角坐标
+            const cXY = cationTriCoord(item.Ca, item.Mg, item.NaK);
+            cationPoints.push({
+                value: [cXY[0], cXY[1]],
+                name: `点${item.id}`,
+                itemStyle: { color: '#1E90FF' }
+            });
+            // 右三角坐标
+            const aXY = anionTriCoord(item.HCO3CO3, item.SO4, item.Cl);
+            anionPoints.push({
+                value: [aXY[0], aXY[1]],
+                name: `点${item.id}`,
+                itemStyle: { color: '#228B22' }
+            });
+            // 中间菱形坐标
+            const dXY = diamondCoord(cXY, aXY);
+            diamondPoints.push({
+                value: [dXY[0], dXY[1]],
+                name: `点${item.id}`,
+                label: { show: true, formatter: item.id, fontSize: 12 },
+                itemStyle: { color: '#FF8C00' }
+            });
+        });
+
+        // 4. Piper三线图完整配置
         const option = {
             title: { show: false },
             tooltip: {
                 trigger: 'item',
-                formatter: function (params) {
-                    return `数据点${params.dataIndex+1}<br/>${params.seriesName}: ${params.value}`;
+                formatter: (params) => {
+                    const data = piperData[params.dataIndex];
+                    return `
+                        数据点${data.id}<br/>
+                        阳离子：Ca²+${data.Ca}% | Mg²+${data.Mg}% | Na++K+${data.NaK}%<br/>
+                        阴离子：HCO₃⁻+CO₃²⁻${data.HCO3CO3}% | SO₄²⁻${data.SO4}% | Cl⁻${data.Cl}%
+                    `;
                 }
             },
-            grid: {
-                left: '5%',
-                right: '5%',
-                top: '10%',
-                bottom: '10%',
-                containLabel: true
-            },
+            grid: { left: '2%', right: '2%', top: '5%', bottom: '5%', containLabel: true },
             xAxis: {
-                name: 'X轴',
                 type: 'value',
                 min: 0,
-                max: 2,
-                axisLine: { lineStyle: { color: '#000' } }
+                max: 2.5,
+                axisLine: { show: false },
+                axisTick: { show: false },
+                axisLabel: { show: false },
+                splitLine: { show: false }
             },
             yAxis: {
-                name: 'Y轴',
                 type: 'value',
                 min: 0,
-                max: 2,
-                axisLine: { lineStyle: { color: '#000' } }
+                max: 1.8,
+                axisLine: { show: false },
+                axisTick: { show: false },
+                axisLabel: { show: false },
+                splitLine: { show: false }
             },
             series: [
-                // 左侧三角形（Ca2+/Mg2+）
+                // ---------- 1. 左侧阳离子三角（蓝色） ----------
                 {
-                    name: '阳离子(钙镁)',
-                    type: 'scatter',
-                    symbolSize: 12,
-                    color: '#1E90FF',
-                    data: sampleData.map(item => [
-                        item.Ca2p / 300 * 0.8,  // X轴映射（适配三角形范围）
-                        item.Mg2p / 50 * 0.8,   // Y轴映射
-                        `Ca2+: ${item.Ca2p}<br/>Mg2+: ${item.Mg2p}`
-                    ])
-                },
-                // 中间菱形（HCO3-/SO42-）
-                {
-                    name: '阴离子(碳酸氢根/硫酸根)',
-                    type: 'scatter',
-                    symbolSize: 12,
-                    color: '#FF8C00',
-                    data: sampleData.map(item => [
-                        1 + item.HCO3n / 20 * 0.4,  // X轴偏移（菱形居中）
-                        item.SO42n / 100 * 0.8,     // Y轴映射
-                        `HCO3-: ${item.HCO3n}<br/>SO4²-: ${item.SO42n}`
-                    ])
-                },
-                // 右侧三角形（Cl-）
-                {
-                    name: '阴离子(氯离子)',
-                    type: 'scatter',
-                    symbolSize: 12,
-                    color: '#228B22',
-                    data: sampleData.map(item => [
-                        1.2 + item.Cln / 10 * 0.6,  // X轴偏移（右侧三角形）
-                        item.Cln / 10 * 0.8,        // Y轴映射
-                        `Cl-: ${item.Cln}`
-                    ])
-                },
-                // 三线图网格标注（模拟百分比网格）
-                {
-                    name: '网格标注',
-                    type: 'graph',
+                    name: '阳离子三角',
+                    type: 'polygon',
                     coordinateSystem: 'cartesian2d',
+                    z: 1,
+                    itemStyle: { color: 'transparent', borderColor: '#1E90FF', borderWidth: 2 },
+                    data: [
+                        [0.2, 1.0],    // 左顶点 (Ca²+)
+                        [1.2, 1.0],    // 右顶点 (Na++K+)
+                        [0.7, 1.0 - Math.sqrt(3)/2 * 1.0] // 上顶点 (Mg²+)
+                    ]
+                },
+                // 左三角百分比网格线
+                {
+                    name: '左三角网格',
+                    type: 'line',
+                    coordinateSystem: 'cartesian2d',
+                    z: 2,
+                    lineStyle: { color: '#B0C4DE', type: 'dashed', width: 1 },
+                    data: (() => {
+                        const lines = [];
+                        // Ca²+百分比线（20%、40%、60%、80%）
+                        for (let p = 20; p <= 80; p += 20) {
+                            const x1 = 0.2 + (1.0 * p / 100);
+                            const y1 = 1.0;
+                            const x2 = 0.7 - (0.5 * p / 100);
+                            const y2 = 1.0 - Math.sqrt(3)/2 * (p / 100);
+                            lines.push([[x1, y1], [x2, y2]]);
+                        }
+                        // Mg²+百分比线（20%、40%、60%、80%）
+                        for (let p = 20; p <= 80; p += 20) {
+                            const x1 = 0.7 + (0.5 * p / 100);
+                            const y1 = 1.0 - Math.sqrt(3)/2 * (p / 100);
+                            const x2 = 0.2 + (1.0 * (100-p) / 100);
+                            const y2 = 1.0;
+                            lines.push([[x1, y1], [x2, y2]]);
+                        }
+                        return lines;
+                    })()
+                },
+                // 左三角标注文本
+                {
+                    name: '左三角标注',
+                    type: 'scatter',
+                    coordinateSystem: 'cartesian2d',
+                    z: 3,
                     symbol: 'none',
-                    links: [
-                        // 左侧三角形网格线（示例）
-                        { source: [0,0], target: [0.8,0] },
-                        { source: [0,0], target: [0,0.8] },
-                        { source: [0.8,0], target: [0,0.8] },
-                        // 中间菱形网格线（示例）
-                        { source: [0.8,0], target: [1.2,0.8] },
-                        { source: [1.2,0], target: [0.8,0.8] },
-                        // 右侧三角形网格线（示例）
-                        { source: [1.2,0], target: [2,0] },
-                        { source: [1.2,0], target: [1.2,0.8] },
-                        { source: [2,0], target: [1.2,0.8] }
-                    ],
-                    lineStyle: { color: '#ccc', type: 'dashed' }
+                    label: {
+                        show: true,
+                        fontSize: 11,
+                        color: '#1E90FF'
+                    },
+                    data: [
+                        { value: [0.15, 1.0], label: { formatter: 'Ca²+' } },
+                        { value: [1.25, 1.0], label: { formatter: 'Na++K+' } },
+                        { value: [0.7, 0.1], label: { formatter: 'Mg²+' } },
+                        { value: [0.3, 1.0], label: { formatter: '80%' } },
+                        { value: [0.5, 1.0], label: { formatter: '60%' } },
+                        { value: [0.7, 1.0], label: { formatter: '40%' } },
+                        { value: [0.9, 1.0], label: { formatter: '20%' } },
+                    ]
+                },
+                // 左三角数据点
+                {
+                    name: '阳离子数据点',
+                    type: 'scatter',
+                    coordinateSystem: 'cartesian2d',
+                    z: 4,
+                    symbolSize: 8,
+                    data: cationPoints
+                },
+
+                // ---------- 2. 右侧阴离子三角（红色） ----------
+                {
+                    name: '阴离子三角',
+                    type: 'polygon',
+                    coordinateSystem: 'cartesian2d',
+                    z: 1,
+                    itemStyle: { color: 'transparent', borderColor: '#DC143C', borderWidth: 2 },
+                    data: [
+                        [1.3, 1.0],    // 左顶点 (HCO₃⁻+CO₃²⁻)
+                        [2.3, 1.0],    // 右顶点 (Cl⁻)
+                        [1.8, 1.0 - Math.sqrt(3)/2 * 1.0] // 上顶点 (SO₄²⁻)
+                    ]
+                },
+                // 右三角百分比网格线
+                {
+                    name: '右三角网格',
+                    type: 'line',
+                    coordinateSystem: 'cartesian2d',
+                    z: 2,
+                    lineStyle: { color: '#F08080', type: 'dashed', width: 1 },
+                    data: (() => {
+                        const lines = [];
+                        // HCO3CO3百分比线（20%、40%、60%、80%）
+                        for (let p = 20; p <= 80; p += 20) {
+                            const x1 = 1.3 + (1.0 * p / 100);
+                            const y1 = 1.0;
+                            const x2 = 1.8 - (0.5 * p / 100);
+                            const y2 = 1.0 - Math.sqrt(3)/2 * (p / 100);
+                            lines.push([[x1, y1], [x2, y2]]);
+                        }
+                        // SO4百分比线（20%、40%、60%、80%）
+                        for (let p = 20; p <= 80; p += 20) {
+                            const x1 = 1.8 + (0.5 * p / 100);
+                            const y1 = 1.0 - Math.sqrt(3)/2 * (p / 100);
+                            const x2 = 1.3 + (1.0 * (100-p) / 100);
+                            const y2 = 1.0;
+                            lines.push([[x1, y1], [x2, y2]]);
+                        }
+                        return lines;
+                    })()
+                },
+                // 右三角标注文本
+                {
+                    name: '右三角标注',
+                    type: 'scatter',
+                    coordinateSystem: 'cartesian2d',
+                    z: 3,
+                    symbol: 'none',
+                    label: {
+                        show: true,
+                        fontSize: 11,
+                        color: '#DC143C'
+                    },
+                    data: [
+                        { value: [1.25, 1.0], label: { formatter: 'HCO₃⁻+CO₃²⁻' } },
+                        { value: [2.35, 1.0], label: { formatter: 'Cl⁻' } },
+                        { value: [1.8, 0.1], label: { formatter: 'SO₄²⁻' } },
+                        { value: [1.5, 1.0], label: { formatter: '80%' } },
+                        { value: [1.7, 1.0], label: { formatter: '60%' } },
+                        { value: [1.9, 1.0], label: { formatter: '40%' } },
+                        { value: [2.1, 1.0], label: { formatter: '20%' } },
+                    ]
+                },
+                // 右三角数据点
+                {
+                    name: '阴离子数据点',
+                    type: 'scatter',
+                    coordinateSystem: 'cartesian2d',
+                    z: 4,
+                    symbolSize: 8,
+                    data: anionPoints
+                },
+
+                // ---------- 3. 中间菱形（绿色） ----------
+                {
+                    name: '中间菱形',
+                    type: 'polygon',
+                    coordinateSystem: 'cartesian2d',
+                    z: 1,
+                    itemStyle: { color: 'transparent', borderColor: '#228B22', borderWidth: 2 },
+                    data: [
+                        [1.2, 0.2],    // 左下顶点
+                        [1.8, 0.2],    // 右下顶点
+                        [1.8, 1.2],    // 右上顶点
+                        [1.2, 1.2]     // 左上顶点
+                    ]
+                },
+                // 菱形百分比网格线
+                {
+                    name: '菱形网格',
+                    type: 'line',
+                    coordinateSystem: 'cartesian2d',
+                    z: 2,
+                    lineStyle: { color: '#90EE90', type: 'dashed', width: 1 },
+                    data: (() => {
+                        const lines = [];
+                        // 水平网格（20%、40%、60%、80%）
+                        for (let p = 20; p <= 80; p += 20) {
+                            const y = 0.2 + (1.0 * p / 100);
+                            lines.push([[1.2, y], [1.8, y]]);
+                        }
+                        // 垂直网格（20%、40%、60%、80%）
+                        for (let p = 20; p <= 80; p += 20) {
+                            const x = 1.2 + (0.6 * p / 100);
+                            lines.push([[x, 0.2], [x, 1.2]]);
+                        }
+                        // 对角线网格
+                        lines.push([[1.2, 0.2], [1.8, 1.2]]);
+                        lines.push([[1.8, 0.2], [1.2, 1.2]]);
+                        return lines;
+                    })()
+                },
+                // 菱形标注文本
+                {
+                    name: '菱形标注',
+                    type: 'scatter',
+                    coordinateSystem: 'cartesian2d',
+                    z: 3,
+                    symbol: 'none',
+                    label: {
+                        show: true,
+                        fontSize: 11,
+                        color: '#228B22'
+                    },
+                    data: [
+                        { value: [1.15, 0.4], label: { formatter: '20%' } },
+                        { value: [1.15, 0.6], label: { formatter: '40%' } },
+                        { value: [1.15, 0.8], label: { formatter: '60%' } },
+                        { value: [1.15, 1.0], label: { formatter: '80%' } },
+                        { value: [1.32, 0.15], label: { formatter: '20%' } },
+                        { value: [1.48, 0.15], label: { formatter: '40%' } },
+                        { value: [1.64, 0.15], label: { formatter: '60%' } },
+                        { value: [1.8, 0.15],  label: { formatter: '80%' } },
+                    ]
+                },
+                // 菱形数据点（带数字标注）
+                {
+                    name: '菱形数据点',
+                    type: 'scatter',
+                    coordinateSystem: 'cartesian2d',
+                    z: 4,
+                    symbolSize: 10,
+                    data: diamondPoints
                 }
             ]
         };
@@ -210,66 +409,50 @@
         myChart.setOption(option);
         window.addEventListener('resize', () => myChart.resize());
 
-        // 3. 填充数据表格
+        // 5. 填充数据表格
         const tableBody = $('#dataTable tbody');
-        sampleData.forEach((item, index) => {
-            const tr = $(`<tr data-index="${index}"></tr>`);
-            tr.append(`<td>${item.序号}</td>`);
-            tr.append(`<td>${item.Ca2p}</td>`);
-            tr.append(`<td>${item.Mg2p}</td>`);
-            tr.append(`<td>${item.Nap}</td>`);
-            tr.append(`<td>${item.Kp}</td>`);
-            tr.append(`<td>${item.HCO3n}</td>`);
-            tr.append(`<td>${item.SO42n}</td>`);
-            tr.append(`<td>${item.Cln}</td>`);
+        piperData.forEach(item => {
+            const tr = $(`<tr data-index="${item.id-1}"></tr>`);
+            tr.append(`<td>${item.id}</td>`);
+            tr.append(`<td>${item.Ca.toFixed(2)}</td>`);
+            tr.append(`<td>${item.Mg.toFixed(2)}</td>`);
+            tr.append(`<td>${item.NaK.toFixed(2)}</td>`);
+            tr.append(`<td>${item.HCO3CO3.toFixed(2)}</td>`);
+            tr.append(`<td>${item.SO4.toFixed(2)}</td>`);
+            tr.append(`<td>${item.Cl.toFixed(2)}</td>`);
             tableBody.append(tr);
         });
 
-        // 4. 表格行选中事件（显示详情）
+        // 6. 表格选中事件
         $('#dataTable tbody tr').click(function() {
-            // 取消其他行选中，高亮当前行
             $('#dataTable tbody tr').removeClass('selected');
             $(this).addClass('selected');
-            // 获取选中行数据
-            const index = $(this).data('index');
-            const data = sampleData[index];
-            // 渲染详情面板
-            const detailHtml = `
-                [数据点 ${index+1}] Ca=${data.Ca2p} | Mg=${data.Mg2p} | Na+K=${data.Nap+data.Kp}<br/>
-                HCO3=${data.HCO3n} | SO4=${data.SO42n} | Cl=${data.Cln}<br/>
-                ───────────────────────────────────<br/>
-                [数据点${index+1}位于第2、4、8区]<br/>
-                → 化学类型：钠-氯化物型水, 水质评估：水质较差<br/>
-                → 可能受到较多的钠离子和氯离子污染。
-            `;
-            $('#dataDetail').html(detailHtml);
+            const idx = $(this).data('index');
+            const data = piperData[idx];
+            $('#dataDetail').html(`
+                [数据点 ${data.id}]<br/>
+                阳离子百分比：Ca²+${data.Ca}% | Mg²+${data.Mg}% | Na++K+${data.NaK}%<br/>
+                阴离子百分比：HCO₃⁻+CO₃²⁻${data.HCO3CO3}% | SO₄²⁻${data.SO4}% | Cl⁻${data.Cl}%<br/>
+                水质评估：钠-氯化物型水，水质较差（受Na+、Cl-污染）
+            `);
         });
 
-        // 5. 按钮功能实现
-        // 导出图表
-        $('#exportChart').click(function() {
-            const imgUrl = myChart.getDataURL({
-                type: 'png',
-                pixelRatio: 2,
-                backgroundColor: '#fff'
-            });
+        // 7. 按钮功能
+        $('#exportChart').click(() => {
+            const img = myChart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#fff' });
             const a = document.createElement('a');
-            a.href = imgUrl;
-            a.download = '地下水三线图.png';
-            a.click();
+            a.href = img; a.download = 'Piper三线图.png'; a.click();
         });
 
-        // 导出Excel
-        $('#exportExcel').click(function() {
-            const ws = XLSX.utils.json_to_sheet(sampleData);
+        $('#exportExcel').click(() => {
+            const ws = XLSX.utils.json_to_sheet(piperData);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, '三线图数据');
-            XLSX.writeFile(wb, '地下水三线图数据.xlsx');
+            XLSX.utils.book_append_sheet(wb, ws, 'Piper数据');
+            XLSX.writeFile(wb, 'Piper三线图数据.xlsx');
         });
 
-        // 其他按钮（占位，可扩展）
         $('#addRegion, #addRegionLabel, #delRegionLabel, #exportDGV').click(function() {
-            alert(`【${$(this).text()}】功能待扩展，可根据业务逻辑补充实现`);
+            alert(`【${$(this).text()}】功能可扩展，如需实现可补充分区标注/数据编辑逻辑`);
         });
 
         // 初始化选中第一行
