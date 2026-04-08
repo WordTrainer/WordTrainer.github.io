@@ -5,346 +5,313 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>地下水Piper三线图分析系统</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist@2.30.1/dist/plotly.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         body { padding: 20px; background-color: #f8f9fa; }
-        .chart-container { position: relative; height: 600px; background: white; border: 1px solid #ddd; }
-        #resultBox { height: 180px; resize: none; }
-        .btn-group { margin-bottom: 15px; }
+        #plotArea { height: 700px; background: white; border-radius: 8px; padding: 10px; }
+        .result-box { height: 200px; overflow-y: auto; background: white; }
+        .table-container { max-height: 300px; overflow-y: auto; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h3 class="text-center mb-4">地下水化学分类 Piper三线图分析</h3>
-
-        <!-- 功能按钮 -->
-        <div class="d-flex gap-2 flex-wrap mb-3">
-            <button class="btn btn-primary" id="importExcel">导入Excel数据</button>
-            <button class="btn btn-success" id="genDivision">生成六/九区划分</button>
-            <button class="btn btn-warning" id="delDivision">清除分区标注</button>
-            <button class="btn btn-info" id="exportImg">导出高清图片</button>
-            <button class="btn btn-dark" id="exportExcel">导出结果到Excel</button>
+    <div class="container-fluid">
+        <h3 class="text-center mb-4 text-primary">地下水Piper三线图化学分类分析</h3>
+        
+        <div class="row mb-3">
+            <div class="col-auto">
+                <button class="btn btn-primary" onclick="selectExcel()">导入Excel数据</button>
+                <button class="btn btn-success" onclick="showDivisions()">显示六区划分</button>
+                <button class="btn btn-warning" onclick="hideDivisions()">隐藏划分</button>
+                <button class="btn btn-info" onclick="exportImage()">导出图片</button>
+                <button class="btn btn-dark" onclick="exportExcel()">导出结果Excel</button>
+            </div>
         </div>
 
-        <!-- 图表区域 -->
-        <div class="chart-container mb-4">
-            <canvas id="piperChart"></canvas>
-        </div>
-
-        <!-- 结果文本框 -->
-        <div class="mb-3">
-            <label class="form-label">分析结果</label>
-            <textarea class="form-control" id="resultBox" readonly></textarea>
-        </div>
-
-        <!-- 数据表格 -->
-        <div>
-            <label class="form-label">数据详情表</label>
-            <div class="table-responsive">
-                <table class="table table-sm table-bordered" id="dataTable">
-                    <thead class="table-light">
-                        <tr>
-                            <th>序号</th><th>Ca%</th><th>Mg%</th><th>Na+K%</th><th>HCO3+CO3%</th><th>SO4%</th><th>Cl%</th>
-                            <th>所在区域</th><th>化学类型</th><th>水质评估</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
+        <div class="row">
+            <div class="col-lg-8">
+                <div id="plotArea"></div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card mb-3">
+                    <div class="card-header">分析结果</div>
+                    <div class="card-body result-box" id="resultText"></div>
+                </div>
+                <div class="card table-container">
+                    <div class="card-header">数据表格</div>
+                    <table class="table table-sm" id="resultTable">
+                        <thead>
+                            <tr>
+                                <th>序号</th><th>Ca%</th><th>Mg%</th><th>Na+K%</th><th>HCO3+CO3%</th><th>SO4%</th><th>Cl%</th><th>区域</th><th>水化学类型</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
 
-    <script>
-        // ===================== 常量定义（与原VB完全一致）=====================
-        const CaMolarMass = 40.08, MgMolarMass = 24.31, K_MolarMass = 39.1, NaMolarMass = 22.99;
-        const HCO3_MolarMass = 61.02, CO3_MolarMass = 60.01, SO4_MolarMass = 96.06, Cl_MolarMass = 35.45;
+<script>
+// 常量定义（离子摩尔质量）
+const CONST = {
+    Ca: 40.08, Mg: 24.31, K: 39.1, Na: 22.99,
+    HCO3: 61.02, CO3: 60.01, SO4: 96.06, Cl: 35.45
+};
 
-        // 全局变量
-        let chart, plotModel = { series: [], annotations: [], axes: [] };
-        let dataPoints = [], allResultData = [];
-        let parallelogram = { left: null, top: null, right: null, bottom: null };
-        let zoneColors = [
-            'rgba(255,204,204,0.5)', 'rgba(204,204,255,0.5)', 'rgba(204,255,204,0.5)',
-            'rgba(255,255,204,0.5)', 'rgba(204,204,255,0.5)', 'rgba(255,204,255,0.5)'
-        ];
+// 全局变量
+let plotData = [];
+let layout = {};
+let config = {responsive: true};
+let allPoints = [];
+let parallelogram = {};
+let showDivisionFlag = false;
 
-        // ===================== 页面加载初始化 =====================
-        window.onload = function () {
-            initPiperChart();
-            drawBaseTriangles();
-            bindEvents();
+// ===================== 初始化绘图 =====================
+window.onload = function() {
+    initPiperPlot();
+};
+
+function initPiperPlot() {
+    layout = {
+        title: { text: '地下水Piper三线图分析', font: { size: 16 }},
+        showlegend: false,
+        xaxis: { range: [-0.2, 2.4], showgrid: true, zeroline: false, title: 'X轴' },
+        yaxis: { range: [-0.2, 2.0], showgrid: true, zeroline: false, title: 'Y轴' },
+        plot_bgcolor: 'aliceblue',
+        paper_bgcolor: 'white'
+    };
+    plotData = [];
+    drawBaseTriangles();
+    Plotly.newPlot('plotArea', plotData, layout, config);
+}
+
+// ===================== 绘制基础三角形与平行四边形 =====================
+function drawBaseTriangles() {
+    const sqrt3 = Math.sqrt(3)/2;
+    // 阳离子三角形
+    const cation = [[0,0], [1,0], [0.5, sqrt3], [0,0]];
+    addLine(cation, '#336699', 2.5);
+    
+    // 阴离子三角形
+    const anion = [[1.2,0], [2.2,0], [1.7, sqrt3], [1.2,0]];
+    addLine(anion, '#cc6666', 2.5);
+
+    // 网格线
+    drawGrid([[0,0],[1,0],[0.5,sqrt3]], '#e1f0ff');
+    drawGrid([[1.2,0],[2.2,0],[1.7,sqrt3]], '#ffe5e5');
+
+    // 计算平行四边形
+    calcParallelogram(sqrt3);
+    // 绘制平行四边形
+    const para = [
+        [parallelogram.bottom.x, parallelogram.bottom.y],
+        [parallelogram.left.x, parallelogram.left.y],
+        [parallelogram.top.x, parallelogram.top.y],
+        [parallelogram.right.x, parallelogram.right.y],
+        [parallelogram.bottom.x, parallelogram.bottom.y]
+    ];
+    addLine(para, '#99cc99', 2);
+    drawParaGrid();
+}
+
+// 计算平行四边形顶点
+function calcParallelogram(sqrt3) {
+    parallelogram.top = {x: 1.1, y: sqrt3 + 0.2};
+    parallelogram.left = {x: 0.6, y: sqrt3 + 0.6};
+    parallelogram.right = {x: 1.6, y: sqrt3 + 0.6};
+    parallelogram.bottom = {x: 1.1, y: sqrt3 + 1.0};
+}
+
+// 绘制线条
+function addLine(points, color, width) {
+    let x = [], y = [];
+    points.forEach(p => { x.push(p[0]); y.push(p[1]); });
+    plotData.push({
+        type: 'scatter', x, y, mode: 'lines',
+        line: { color, width },
+        hoverinfo: 'skip'
+    });
+}
+
+// 绘制网格
+function drawGrid(tri, color) {
+    for(let i=1; i<10; i++) {
+        let r = i/10;
+        let p1 = lerp(tri[0], tri[1], r);
+        let p2 = lerp(tri[0], tri[2], r);
+        let p3 = lerp(tri[1], tri[2], r);
+        addLine([p1, p2], color, 0.5);
+        addLine([p2, p3], color, 0.5);
+    }
+}
+
+function drawParaGrid() {
+    const p = parallelogram;
+    for(let i=1; i<10; i++) {
+        let r1 = i/10, r2 = 1-i/10;
+        let a = lerp([p.bottom.x,p.bottom.y], [p.left.x,p.left.y], r1);
+        let b = lerp([p.top.x,p.top.y], [p.right.x,p.right.y], r2);
+        let c = lerp([p.left.x,p.left.y], [p.top.x,p.top.y], r1);
+        let d = lerp([p.right.x,p.right.y], [p.bottom.x,p.bottom.y], r2);
+        addLine([a,b], '#eee', 0.5);
+        addLine([c,d], '#eee', 0.5);
+    }
+}
+
+function lerp(a,b,t) {
+    return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t];
+}
+
+// ===================== 六区划分 =====================
+function showDivisions() {
+    if(showDivisionFlag) return;
+    showDivisionFlag = true;
+    const p = parallelogram;
+    const zones = [
+        {pts: [[0.85,1.066],[1.1,0.866],[1.35,1.066],[0.85,1.066]], color: 'rgba(255,204,204,0.5)', text:'6区:非碳酸硬度>50%'},
+        {pts: [[1.1,1.066],[0.85,1.066],[1.1,0.866],[1.1,1.066]], color: 'rgba(204,204,255,0.5)', text:'9区:无离子>50%'},
+        {pts: [[0.85,1.266],[0.6,1.066],[0.85,1.066],[1.1,1.266],[0.85,1.266]], color:'rgba(204,255,204,0.5)', text:'5区:碳酸硬度>50%'},
+        {pts: [[1.1,1.066],[1.35,1.066],[1.6,1.066],[1.35,1.266],[1.1,1.066]], color:'rgba(255,255,204,0.5)', text:'7区:非碳酸碱金属>50%'},
+        {pts: [[1.35,1.266],[1.1,1.266],[1.1,1.066],[1.35,1.266]], color:'rgba(204,204,255,0.5)', text:'9区:无离子>50%'},
+        {pts: [[0.85,1.266],[1.35,1.266],[1.1,1.466],[0.85,1.266]], color:'rgba(255,204,255,0.5)', text:'8区:碳酸碱金属>50%'}
+    ];
+
+    zones.forEach(z => {
+        let x = [], y = [];
+        z.pts.forEach(p => {x.push(p[0]); y.push(p[1]);});
+        plotData.push({type:'scatter',x,y,mode:'lines',line:{color:'black',width:1},fill:'toself',fillcolor:z.color,hoverinfo:'skip'});
+        plotData.push({
+            type:'scatter',x:[z.pts[2][0]],y:[z.pts[2][1]],text:[z.text],mode:'text',textfont:{size:8},hoverinfo:'skip'
+        });
+    });
+    Plotly.update('plotArea', plotData, layout);
+}
+
+function hideDivisions() {
+    initPiperPlot();
+    showDivisionFlag = false;
+    if(allPoints.length > 0) renderAllPoints();
+}
+
+// ===================== Excel导入 =====================
+function selectExcel() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.xlsx,.xls';
+    input.onchange = e => {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = ev => {
+            const wb = XLSX.read(ev.target.result);
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const data = XLSX.utils.sheet_to_json(sheet, {header:1});
+            processExcelData(data);
         };
+        reader.readAsArrayBuffer(file);
+    };
+    input.click();
+}
 
-        // ===================== 图表初始化 =====================
-        function initPiperChart() {
-            const ctx = document.getElementById('piperChart').getContext('2d');
-            chart = new Chart(ctx, {
-                type: 'scatter',
-                data: { datasets: [] },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    animation: false,
-                    scales: {
-                        x: { min: -0.2, max: 2.4, title: { display: true, text: 'X轴' } },
-                        y: { min: -0.2, max: 2.0, title: { display: true, text: 'Y轴' } }
-                    },
-                    plugins: {
-                        legend: { position: 'top' },
-                        tooltip: { enabled: true }
-                    }
-                }
-            });
-        }
+function processExcelData(data) {
+    allPoints = [];
+    document.getElementById('resultText').innerHTML = '';
+    document.querySelector('#resultTable tbody').innerHTML = '';
+    
+    for(let i=1; i<data.length; i++) {
+        const row = data[i];
+        if(!row || row.length <9) continue;
+        const NO = row[0] || i;
+        const ca = row[1]||0, mg=row[2]||0, k=row[3]||0, na=row[4]||0;
+        const hco3=row[5]||0, co3=row[6]||0, so4=row[7]||0, cl=row[8]||0;
 
-        // ===================== 绘制基础三线图（与VB完全一致）=====================
-        function drawBaseTriangles() {
-            chart.data.datasets = [];
-            const sqrt3 = Math.sqrt(3) / 2;
+        // 当量计算
+        const caEq = ca/(CONST.Ca/2), mgEq=mg/(CONST.Mg/2);
+        const kEq=k/CONST.K, naEq=na/CONST.Na;
+        const catTotal = caEq+mgEq+kEq+naEq;
+        
+        const hco3Eq = hco3/CONST.HCO3, co3Eq=co3/(CONST.CO3/2);
+        const so4Eq=so4/(CONST.SO4/2), clEq=cl/CONST.Cl;
+        const aniTotal = hco3Eq+co3Eq+so4Eq+clEq;
 
-            // 1. 阳离子三角形
-            addLineDataset([{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0.5, y: sqrt3 }, { x: 0, y: 0 }],
-                'rgb(51,102,153)', 2.5, '阳离子三角形');
+        // 百分比
+        const caPer = (caEq/catTotal*100).toFixed(1);
+        const mgPer = (mgEq/catTotal*100).toFixed(1);
+        const nakPer = ((kEq+naEq)/catTotal*100).toFixed(1);
+        const hcPer = ((hco3Eq+co3Eq)/aniTotal*100).toFixed(1);
+        const soPer = (so4Eq/aniTotal*100).toFixed(1);
+        const clPer = (clEq/aniTotal*100).toFixed(1);
 
-            // 2. 阴离子三角形
-            addLineDataset([{ x: 1.2, y: 0 }, { x: 2.2, y: 0 }, { x: 1.7, y: sqrt3 }, { x: 1.2, y: 0 }],
-                'rgb(204,102,102)', 2.5, '阴离子三角形');
+        // 点位
+        const diaX = 0.7 + Number(nakPer)/100*0.8;
+        const diaY = 1.0 + Number(hcPer)/100*0.4;
+        const zone = getZone(diaX, diaY);
+        const type = getWaterType(diaX, diaY);
 
-            // 3. 计算平行四边形顶点
-            calcParallelogram(sqrt3);
+        allPoints.push({NO, x:diaX, y:diaY, caPer,mgPer,nakPer,hcPer,soPer,clPer,zone,type});
+        addResultText(NO, caPer,mgPer,nakPer,hcPer,soPer,clPer,zone,type);
+    }
+    renderAllPoints();
+    renderTable();
+}
 
-            // 4. 绘制平行四边形
-            addLineDataset([
-                parallelogram.bottom, parallelogram.left,
-                parallelogram.top, parallelogram.right, parallelogram.bottom
-            ], 'rgb(153,204,153)', 2, '平行四边形');
+// ===================== 点位渲染 =====================
+function renderAllPoints() {
+    let x = [], y = [], text = [];
+    allPoints.forEach(p => {
+        x.push(p.x); y.push(p.y); text.push(p.NO);
+    });
+    plotData.push({
+        type:'scatter', x,y, mode:'markers+text',text,textposition:'top right',
+        marker:{color:'orange', size:6, symbol:'circle'},
+        textfont:{size:10}, hoverinfo:'text'
+    });
+    Plotly.update('plotArea', plotData, layout);
+}
 
-            // 5. 网格线
-            drawGridLines();
-            chart.update();
-        }
+// ===================== 辅助函数 =====================
+function getZone(x,y) {
+    if(x<1.1 && y>1.066) return "1、3、6";
+    if(x<1.1 && y<1.066) return "1、4、5";
+    if(x>1.1 && y>1.066) return "2、3、7";
+    if(x>1.1 && y<1.066) return "2、4、8";
+    return "9";
+}
 
-        // ===================== 核心计算：平行四边形顶点 =====================
-        function calcParallelogram(sqrt3) {
-            const p1 = { x: 0, y: 0 }, p2 = { x: 0.5, y: sqrt3 };
-            const p3 = { x: 2.2, y: 0 }, p4 = { x: 1.7, y: sqrt3 };
-            parallelogram.top = intersect(p1, p2, p3, p4);
+function getWaterType(x,y) {
+    if(x<1.1&&y>1.066) return "碳酸盐型水";
+    if(x>1.1&&y>1.066) return "硫酸盐-氯化物型水";
+    if(x<1.1&&y<1.066) return "钙镁型水";
+    return "钠-氯化物型水";
+}
 
-            const vecLeft = unitVector(parallelogram.top, { x: 0, y: 0 });
-            parallelogram.left = { x: parallelogram.top.x + vecLeft.x, y: parallelogram.top.y + vecLeft.y };
+function addResultText(NO,ca,mg,nak,hc,so,cl,zone,type) {
+    const div = document.getElementById('resultText');
+    div.innerHTML += `[数据点 ${NO}] Ca=${ca}% | Mg=${mg}% | Na+K=${nak}% | HCO3+CO3=${hc}% | SO4=${so}% | Cl=${cl}%<br>`;
+    div.innerHTML += `→ 区域：${zone} 区 | 类型：${type}<br>————————————————<br>`;
+}
 
-            const vecRight = unitVector(parallelogram.top, { x: 2.2, y: 0 });
-            parallelogram.right = { x: parallelogram.top.x + vecRight.x, y: parallelogram.top.y + vecRight.y };
+function renderTable() {
+    const tb = document.querySelector('#resultTable tbody');
+    allPoints.forEach(p => {
+        tb.innerHTML += `<tr>
+            <td>${p.NO}</td><td>${p.caPer}</td><td>${p.mgPer}</td><td>${p.nakPer}</td>
+            <td>${p.hcPer}</td><td>${p.soPer}</td><td>${p.clPer}</td><td>${p.zone}</td><td>${p.type}</td>
+        </tr>`;
+    });
+}
 
-            parallelogram.bottom = intersect(
-                parallelogram.left, { x: parallelogram.left.x + vecRight.x, y: parallelogram.left.y + vecRight.y },
-                parallelogram.right, { x: parallelogram.right.x + vecLeft.x, y: parallelogram.right.y + vecLeft.y }
-            );
-        }
+// ===================== 导出 =====================
+function exportImage() {
+    Plotly.downloadImage('plotArea', {format:'png', width:1200, height:800, filename:'Piper三线图'});
+}
 
-        // ===================== Excel导入（与VB逻辑一致）=====================
-        function importExcel() {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = '.xlsx,.xls';
-            input.onchange = e => {
-                const file = e.target.files[0];
-                const reader = new FileReader();
-                reader.onload = ev => {
-                    const wb = XLSX.read(ev.target.result);
-                    const ws = wb.Sheets[wb.SheetNames[0]];
-                    const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
-
-                    for (let i = 1; i < data.length; i++) {
-                        const row = data[i];
-                        if (!row || row.length < 9) continue;
-                        const index = parseInt(row[0]) || i;
-                        const [ca, mg, k, na, hco3, co3, so4, cl] = row.slice(1, 9).map(Number);
-                        processData(index, ca, mg, k, na, hco3, co3, so4, cl);
-                    }
-                    showMsg("导入成功！共 " + (data.length - 1) + " 条数据");
-                };
-                reader.readAsArrayBuffer(file);
-            };
-            input.click();
-        }
-
-        // ===================== 数据计算（当量浓度+百分比，与VB完全一致）=====================
-        function processData(index, ca, mg, k, na, hco3, co3, so4, cl) {
-            // 当量计算
-            const caEq = ca / (CaMolarMass / 2);
-            const mgEq = mg / (MgMolarMass / 2);
-            const kEq = k / K_MolarMass;
-            const naEq = na / NaMolarMass;
-            const catTotal = caEq + mgEq + kEq + naEq;
-
-            const hco3Eq = hco3 / HCO3_MolarMass;
-            const co3Eq = co3 / (CO3_MolarMass / 2);
-            const so4Eq = so4 / (SO4_MolarMass / 2);
-            const clEq = cl / Cl_MolarMass;
-            const anTotal = hco3Eq + co3Eq + so4Eq + clEq;
-
-            // 百分比
-            const caPer = (caEq / catTotal * 100) || 0;
-            const mgPer = (mgEq / catTotal * 100) || 0;
-            const nakPer = ((kEq + naEq) / catTotal * 100) || 0;
-            const hco3co3Per = ((hco3Eq + co3Eq) / anTotal * 100) || 0;
-            const so4Per = (so4Eq / anTotal * 100) || 0;
-            const clPer = (clEq / anTotal * 100) || 0;
-
-            // 绘图点
-            const catPoint = calcCationPoint(caPer, mgPer, nakPer);
-            const anPoint = calcAnionPoint(clPer, so4Per, hco3co3Per);
-            const diamondPoint = calcDiamondPoint(nakPer, hco3co3Per);
-
-            // 添加到图表
-            addScatterPoint(catPoint, 'blue', 'triangle', index, '阳离子');
-            addScatterPoint(anPoint, 'green', 'triangle', index, '阴离子');
-            addScatterPoint(diamondPoint, 'orange', 'circle', index, '菱形');
-
-            // 水质判断
-            const type = determineWaterType(diamondPoint);
-            const quality = evaluateQuality(type);
-            const zone = determineZone(diamondPoint);
-
-            // 输出结果
-            addResult(index, caPer, mgPer, nakPer, hco3co3Per, so4Per, clPer, zone, type, quality);
-            chart.update();
-        }
-
-        // ===================== 六/九区划分（与VB完全一致）=====================
-        function addNineDivisions() {
-            const { left, top, right, bottom } = parallelogram;
-            const lMid = mid(left, top), rMid = mid(right, bottom);
-            const tMid = mid(top, right), bMid = mid(bottom, left);
-            const center = intersect(lMid, rMid, tMid, bMid);
-
-            const zones = [
-                [lMid, top, tMid], [center, lMid, tMid], [bMid, left, lMid, center],
-                [center, tMid, right, rMid], [rMid, center, bMid], [bMid, rMid, bottom]
-            ];
-
-            zones.forEach((points, i) => {
-                addPolygonDataset(points, zoneColors[i], `区域${i + 1}`);
-            });
-            chart.update();
-        }
-
-        // ===================== 导出高清PNG =====================
-        function exportImage() {
-            const dpi = prompt("输入DPI（默认96）", "96") || 96;
-            const link = document.createElement('a');
-            link.download = 'Piper三线图.png';
-            link.href = chart.toBase64Image();
-            link.click();
-            showMsg("图片导出成功");
-        }
-
-        // ===================== 导出结果Excel =====================
-        function exportResultExcel() {
-            const ws = XLSX.utils.json_to_sheet(allResultData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "分析结果");
-            XLSX.writeFile(wb, "地下水Piper分析结果.xlsx");
-            showMsg("结果导出成功");
-        }
-
-        // ===================== 事件绑定 =====================
-        function bindEvents() {
-            document.getElementById('importExcel').onclick = importExcel;
-            document.getElementById('genDivision').onclick = addNineDivisions;
-            document.getElementById('delDivision').onclick = clearDivisions;
-            document.getElementById('exportImg').onclick = exportImage;
-            document.getElementById('exportExcel').onclick = exportResultExcel;
-        }
-
-        // ===================== 工具函数（数学计算、绘图、文本输出）=====================
-        function addLineDataset(points, color, width, label) {
-            chart.data.datasets.push({
-                type: 'line', label, data: points,
-                borderColor: color, borderWidth: width, fill: false, pointRadius: 0
-            });
-        }
-
-        function addPolygonDataset(points, color, label) {
-            chart.data.datasets.push({
-                type: 'polygon', label, data: points,
-                backgroundColor: color, borderColor: '#333', borderWidth: 1
-            });
-        }
-
-        function addScatterPoint(point, color, shape, index, group) {
-            chart.data.datasets.push({
-                type: 'scatter', label: `${group}${index}`,
-                data: [point], backgroundColor: color, pointStyle: shape, pointRadius: 5
-            });
-        }
-
-        function intersect(p1, p2, p3, p4) {
-            const a1 = p2.y - p1.y, b1 = p1.x - p2.x, c1 = a1 * p1.x + b1 * p1.y;
-            const a2 = p4.y - p3.y, b2 = p3.x - p4.x, c2 = a2 * p3.x + b2 * p3.y;
-            const det = a1 * b2 - a2 * b1;
-            return { x: (b2 * c1 - b1 * c2) / det, y: (a1 * c2 - a2 * c1) / det };
-        }
-
-        function mid(p1, p2) { return { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }; }
-        function unitVector(p1, p2) { const dx = p2.x - p1.x, dy = p2.y - p1.y, len = Math.hypot(dx, dy); return { x: dx / len, y: dy / len }; }
-
-        function calcCationPoint(ca, mg, nak) { const s = Math.sqrt(3) / 2; return { x: ca * 0 + mg * 0.5 + nak * 1, y: ca * 0 + mg * s + nak * 0 }; }
-        function calcAnionPoint(cl, so4, hc) { const s = Math.sqrt(3) / 2; return { x: cl * 1.2 + so4 * 1.7 + hc * 2.2, y: cl * 0 + so4 * s + hc * 0 }; }
-        function calcDiamondPoint(nak, hc) { return intersect(edgePoint(parallelogram.bottom, parallelogram.left, nak/100), parallelogram.top, edgePoint(parallelogram.bottom, parallelogram.right, hc/100), parallelogram.top); }
-        function edgePoint(s, e, r) { return { x: s.x + (e.x - s.x) * r, y: s.y + (e.y - s.y) * r }; }
-
-        function determineWaterType(p) {
-            const cx = (parallelogram.left.x + parallelogram.right.x) / 2;
-            const cy = (parallelogram.top.y + parallelogram.bottom.y) / 2;
-            if (p.x < cx && p.y > cy) return "碳酸盐型水";
-            if (p.x > cx && p.y > cy) return "硫酸盐-氯化物型水";
-            if (p.x < cx && p.y < cy) return "钙镁型水";
-            return "钠-氯化物型水";
-        }
-
-        function evaluateQuality(t) {
-            switch (t) {
-                case "碳酸盐型水": return "水质较好，适合一般用途";
-                case "硫酸盐-氯化物型水": return "水质一般，可能受污染";
-                case "钙镁型水": return "水质尚可，钙镁含量适中";
-                default: return "水质较差，钠氯污染风险高";
-            }
-        }
-
-        function determineZone(p) { return "1、2、5、6、7、8、9区自动匹配（与VB逻辑一致）"; }
-
-        function addResult(idx, ca, mg, nk, hc, s, c, z, t, q) {
-            const txt = `[数据点 ${idx}] Ca=${ca.toFixed(1)}% | Mg=${mg.toFixed(1)}% | Na+K=${nk.toFixed(1)}% | HCO3+CO3=${hc.toFixed(1)}% | SO4=${s.toFixed(1)}% | Cl=${c.toFixed(1)}%
-  → 位于：${z} | 类型：${t} | 评估：${q}
-——————————————————————————————
-`;
-            document.getElementById('resultBox').value += txt;
-            allResultData.push({ 序号: idx, Ca: ca.toFixed(1), Mg: mg.toFixed(1), NaK: nk.toFixed(1), HCO3CO3: hc.toFixed(1), SO4: s.toFixed(1), Cl: c.toFixed(1), 区域: z, 类型: t, 评估: q });
-            updateTable();
-        }
-
-        function updateTable() {
-            const tb = document.querySelector('#dataTable tbody');
-            tb.innerHTML = '';
-            allResultData.forEach(row => {
-                tb.innerHTML += `<tr>
-                    <td>${row.序号}</td><td>${row.Ca}%</td><td>${row.Mg}%</td><td>${row.NaK}%</td>
-                    <td>${row.HCO3CO3}%</td><td>${row.SO4}%</td><td>${row.Cl}%</td>
-                    <td>${row.区域}</td><td>${row.类型}</td><td>${row.评估}</td>
-                </tr>`;
-            });
-        }
-
-        function clearDivisions() {
-            chart.data.datasets = chart.data.datasets.filter(d => !d.label.includes('区域'));
-            chart.update();
-            showMsg("已清除分区");
-        }
-
-        function drawGridLines() { }
-        function showMsg(msg) { alert(msg); }
-    </script>
+function exportExcel() {
+    const ws = XLSX.utils.json_to_sheet(allPoints);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "分析结果");
+    XLSX.writeFile(wb, "地下水Piper分析结果.xlsx");
+}
+</script>
 </body>
 </html>
