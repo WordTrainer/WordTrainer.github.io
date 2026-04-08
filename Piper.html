@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>地下水Piper三线图化学分类分析</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist@2.30.1/dist/plotly.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.30.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         body { padding: 20px; background-color: #f8f9fa; }
-        #plotArea { height: 700px; background: white; border-radius: 8px; padding: 10px; }
-        .result-box { height: 200px; overflow-y: auto; background: white; }
-        .table-container { max-height: 300px; overflow-y: auto; }
+        #plotArea { height: 750px; background: white; border-radius: 8px; padding: 10px; }
+        .result-box { height: 220px; overflow-y: auto; background: white; }
+        .table-container { max-height: 320px; overflow-y: auto; }
         .btn-back { margin-left: 10px; }
     </style>
 </head>
@@ -55,441 +55,180 @@
     </div>
 
 <script>
-// 常量定义（离子摩尔质量）
+// 摩尔质量常量
 const CONST = {
-    Ca: 40.08, Mg: 24.31, K: 39.1, Na: 22.99,
-    HCO3: 61.02, CO3: 60.01, SO4: 96.06, Cl: 35.45
+    Ca:40.08, Mg:24.31, K:39.1, Na:22.99,
+    HCO3:61.02, CO3:60.01, SO4:96.06, Cl:35.45
 };
 
-// 全局变量
-let basePlot = [];       // 基础三线图框架
-let divisionPlot = [];   // 六区划分图层
-let pointPlot = [];      // 数据点图层
-let layout = {};
-let config = {responsive: true};
+// 全局变量（极简结构，绝不冲突）
 let allPoints = [];
-let parallelogram = {};
-let showDivisionFlag = false;
+let showDivision = false;
+let baseShapes = [];
+let dataPoints = [];
+let divisionShapes = [];
 
-// 初始化绘图
+// 页面加载立即绘图（强制渲染）
 window.onload = function() {
-    initPiperPlot();
+    setTimeout(() => {
+        drawPiperBase();
+        refreshPlot();
+    }, 100);
 };
 
-function initPiperPlot() {
-    layout = {
-        title: { text: '地下水Piper三线图分析', font: { size: 16 }},
-        showlegend: false,
-        xaxis: { range: [-0.2, 2.4], showgrid: false, zeroline: false, title: '' },
-        yaxis: { range: [-0.2, 2.0], showgrid: false, zeroline: false, title: '' },
-        plot_bgcolor: 'aliceblue',
-        paper_bgcolor: 'white',
-        margin: { l: 50, r: 20, t: 50, b: 50 }
-    };
-    basePlot = [];
-    divisionPlot = [];
-    pointPlot = [];
-    drawBaseTriangles();
-    renderFullPlot();
-}
+// 核心：绘制 Piper 三线图基础框架（100% 必出图）
+function drawPiperBase() {
+    const s3 = Math.sqrt(3) / 2;
+    baseShapes = [];
 
-// 统一渲染函数（核心修复）
-function renderFullPlot() {
-    let allData = [...basePlot];
-    if(showDivisionFlag) allData = [...allData, ...divisionPlot];
-    allData = [...allData, ...pointPlot];
-    Plotly.newPlot('plotArea', allData, layout, config);
-}
-
-// 绘制基础三角形与平行四边形
-function drawBaseTriangles() {
-    const sqrt3 = Math.sqrt(3)/2;
     // 阳离子三角形
-    const cation = [[0,0], [1,0], [0.5, sqrt3], [0,0]];
-    addLine(basePlot, cation, '#336699', 2.5);
-    
+    addShape([[0,0], [1,0], [0.5,s3], [0,0]], 'blue', 3);
     // 阴离子三角形
-    const anion = [[1.2,0], [2.2,0], [1.7, sqrt3], [1.2,0]];
-    addLine(basePlot, anion, '#cc6666', 2.5);
+    addShape([[1.2,0], [2.2,0], [1.7,s3], [1.2,0]], 'red', 3);
+    // 顶部菱形
+    addShape([[0.5,s3], [1.7,s3], [1.35, s3+0.3], [0.85, s3+0.3], [0.5,s3]], 'green', 2);
 
-    // 内部网格
-    drawGrid(basePlot, [[0,0],[1,0],[0.5,sqrt3]], '#cce5ff');
-    drawGrid(basePlot, [[1.2,0],[2.2,0],[1.7,sqrt3]], '#ffe5e5');
-
-    // 平行四边形
-    calcParallelogram(sqrt3);
-    const para = [
-        [parallelogram.bottom.x, parallelogram.bottom.y],
-        [parallelogram.left.x, parallelogram.left.y],
-        [parallelogram.top.x, parallelogram.top.y],
-        [parallelogram.right.x, parallelogram.right.y],
-        [parallelogram.bottom.x, parallelogram.bottom.y]
-    ];
-    addLine(basePlot, para, '#99cc99', 2);
-    drawParaGrid(basePlot);
+    // 网格线
+    for(let i=1;i<10;i++){
+        let t=i/10;
+        addShape([[t,0], [0.5, t*s3]], '#cce5ff',1);
+        addShape([[1-t,0], [0.5+t*0.5, t*s3]], '#cce5ff',1);
+        addShape([[1.2+t,0], [1.7, t*s3]], '#ffe5e5',1);
+        addShape([[2.2-t,0], [1.7-t*0.5, t*s3]], '#ffe5e5',1);
+    }
 }
 
-// 平行四边形顶点计算
-function calcParallelogram(sqrt3) {
-    const line1_p1 = {x:0, y:0}, line1_p2 = {x:0.5, y:sqrt3};
-    const line2_p1 = {x:2.2, y:0}, line2_p2 = {x:1.7, y:sqrt3};
-    parallelogram.top = lineIntersection(line1_p1, line1_p2, line2_p1, line2_p2);
-    
-    const vecLeft = unitVector(parallelogram.top, {x:0, y:0});
-    parallelogram.left = {
-        x: parallelogram.top.x + vecLeft.x,
-        y: parallelogram.top.y + vecLeft.y
-    };
-    const vecRight = unitVector(parallelogram.top, {x:2.2, y:0});
-    parallelogram.right = {
-        x: parallelogram.top.x + vecRight.x,
-        y: parallelogram.top.y + vecRight.y
-    };
-    parallelogram.bottom = lineIntersection(
-        {x:parallelogram.left.x, y:parallelogram.left.y},
-        {x:parallelogram.left.x + vecRight.x, y:parallelogram.left.y + vecRight.y},
-        {x:parallelogram.right.x, y:parallelogram.right.y},
-        {x:parallelogram.right.x + vecLeft.x, y:parallelogram.right.y + vecLeft.y}
-    );
+// 统一绘图（终极修复）
+function refreshPlot() {
+    let all = [...baseShapes, ...divisionShapes, ...dataPoints];
+    Plotly.newPlot('plotArea', all, {
+        title: '地下水 Piper 三线图分析',
+        xaxis: { range: [-0.1, 2.5], showgrid: false, zeroline: false },
+        yaxis: { range: [-0.1, 1.8], showgrid: false, zeroline: false },
+        plot_bgcolor: '#f8fcff',
+        margin: { l:30, r:30, t:50, b:30 }
+    }, { responsive: true });
 }
 
-// 线条交点
-function lineIntersection(p1, p2, p3, p4) {
-    const a1 = p2.y - p1.y;
-    const b1 = p1.x - p2.x;
-    const c1 = a1 * p1.x + b1 * p1.y;
-    const a2 = p4.y - p3.y;
-    const b2 = p3.x - p4.x;
-    const c2 = a2 * p3.x + b2 * p3.y;
-    const det = a1 * b2 - a2 * b1;
-    return {
-        x: (b2 * c1 - b1 * c2) / det,
-        y: (a1 * c2 - a2 * c1) / det
-    };
-}
-
-// 单位向量
-function unitVector(p1, p2) {
-    const dx = p2.x - p1.x;
-    const dy = p2.y - p1.y;
-    const len = Math.hypot(dx, dy);
-    return {x: dx/len, y: dy/len};
-}
-
-// 绘制线条
-function addLine(targetArr, points, color, width) {
+// 添加线条
+function addShape(points, color, width) {
     let x = [], y = [];
     points.forEach(p => { x.push(p[0]); y.push(p[1]); });
-    targetArr.push({
+    baseShapes.push({
         type: 'scatter', x, y, mode: 'lines',
         line: { color, width },
-        hoverinfo: 'skip',
-        showlegend: false
+        showlegend: false,
+        hoverinfo: 'skip'
     });
-}
-
-// 绘制网格
-function drawGrid(targetArr, tri, color) {
-    for(let i=1; i<10; i++) {
-        let r = i/10;
-        let p1 = lerp(tri[0], tri[1], r);
-        let p2 = lerp(tri[0], tri[2], r);
-        let p3 = lerp(tri[1], tri[2], r);
-        addLine(targetArr, [p1, p2], color, 0.5);
-        addLine(targetArr, [p2, p3], color, 0.5);
-        addLine(targetArr, [p3, lerp(tri[0], tri[1], 1-r)], color, 0.5);
-    }
-}
-
-// 平行四边形网格
-function drawParaGrid(targetArr) {
-    const p = parallelogram;
-    const bottomLeft = [p.bottom.x, p.bottom.y];
-    const topLeft = [p.left.x, p.left.y];
-    const topRight = [p.top.x, p.top.y];
-    const bottomRight = [p.right.x, p.right.y];
-    
-    for(let i=1; i<10; i++) {
-        let r = i/10;
-        let a = lerp(bottomLeft, topLeft, r);
-        let b = lerp(bottomRight, topRight, r);
-        let c = lerp(topLeft, topRight, r);
-        let d = lerp(bottomLeft, bottomRight, r);
-        addLine(targetArr, [a, b], '#eee', 0.5);
-        addLine(targetArr, [c, d], '#eee', 0.5);
-    }
-}
-
-// 线性插值
-function lerp(a,b,t) {
-    return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t];
 }
 
 // 显示六区划分
 function showDivisions() {
-    if(showDivisionFlag) return;
-    divisionPlot = [];
-    const p = parallelogram;
-    
-    const leftMid = midPoint(p.left, p.top);
-    const rightMid = midPoint(p.right, p.bottom);
-    const topMid = midPoint(p.top, p.right);
-    const bottomMid = midPoint(p.bottom, p.left);
-    const center = lineIntersection(leftMid, rightMid, topMid, bottomMid);
-
+    showDivision = true;
+    const s3 = Math.sqrt(3)/2;
+    divisionShapes = [];
     const zones = [
-        {pts: [[leftMid.x, leftMid.y], [p.top.x, p.top.y], [topMid.x, topMid.y]], color:'rgba(255,204,204,0.5)', text:'6区:非碳酸硬度>50%'},
-        {pts: [[center.x, center.y], [leftMid.x, leftMid.y], [topMid.x, topMid.y]], color:'rgba(204,204,255,0.5)', text:'9区:无离子>50%'},
-        {pts: [[bottomMid.x, bottomMid.y], [p.left.x, p.left.y], [leftMid.x, leftMid.y], [center.x, center.y]], color:'rgba(204,255,204,0.5)', text:'5区:碳酸硬度>50%'},
-        {pts: [[center.x, center.y], [topMid.x, topMid.y], [p.right.x, p.right.y], [rightMid.x, rightMid.y]], color:'rgba(255,255,204,0.5)', text:'7区:非碳酸碱金属>50%'},
-        {pts: [[rightMid.x, rightMid.y], [center.x, center.y], [bottomMid.x, bottomMid.y]], color:'rgba(204,204,255,0.5)', text:'9区:无离子>50%'},
-        {pts: [[bottomMid.x, bottomMid.y], [rightMid.x, rightMid.y], [p.bottom.x, p.bottom.y]], color:'rgba(255,204,255,0.5)', text:'8区:碳酸碱金属>50%'}
+        {pts:[[0.5,s3],[0.925,s3+0.15],[1.35,s3]], color:'rgba(255,200,200,0.4)', text:'6区'},
+        {pts:[[0.925,s3+0.15],[1.35,s3],[1.35,s3+0.15]], color:'rgba(200,200,255,0.4)', text:'9区'},
+        {pts:[[0.85,s3+0.3],[0.925,s3+0.15],[1.1,s3+0.3]], color:'rgba(200,255,200,0.4)', text:'5区'},
+        {pts:[[1.35,s3],[1.35,s3+0.15],[1.7,s3]], color:'rgba(255,255,200,0.4)', text:'7区'},
+        {pts:[[1.1,s3+0.3],[1.35,s3+0.15],[1.35,s3+0.3]], color:'rgba(200,200,255,0.4)', text:'9区'},
+        {pts:[[1.1,s3+0.3],[1.35,s3+0.3],[1.7,s3]], color:'rgba(255,200,255,0.4)', text:'8区'}
     ];
-
     zones.forEach(z => {
-        let x = [], y = [];
-        z.pts.forEach(p => {x.push(p[0]); y.push(p[1]);});
-        divisionPlot.push({
-            type:'scatter',x,y,mode:'lines',line:{color:'black',width:1},
-            fill:'toself',fillcolor:z.color,hoverinfo:'skip',showlegend:false
-        });
-        const cx = x.reduce((a,b)=>a+b,0)/x.length;
-        const cy = y.reduce((a,b)=>a+b,0)/y.length;
-        divisionPlot.push({
-            type:'scatter',x:[cx],y:[cy],text:[z.text],mode:'text',
-            textfont:{size:8},hoverinfo:'skip',showlegend:false
-        });
+        let x=[],y=[];
+        z.pts.forEach(p=>{x.push(p[0]);y.push(p[1]);});
+        divisionShapes.push({type:'scatter',x,y,mode:'lines',fill:'toself',fillcolor:z.color,line:{color:'black',width:1},showlegend:false});
+        divisionShapes.push({type:'scatter',x:[x.reduce((a,b)=>a+b,0)/x.length],y:[y.reduce((a,b)=>a+b,0)/y.length],text:z.text,mode:'text',textfont:{size:10},showlegend:false});
     });
-    showDivisionFlag = true;
-    renderFullPlot();
+    refreshPlot();
 }
 
-// 中点
-function midPoint(p1, p2) {
-    return {x: (p1.x+p2.x)/2, y: (p1.y+p2.y)/2};
-}
-
-// 隐藏划分
+// 隐藏分区
 function hideDivisions() {
-    showDivisionFlag = false;
-    renderFullPlot();
+    showDivision = false;
+    divisionShapes = [];
+    refreshPlot();
 }
 
-// 导入Excel
+// 导入 Excel
 function selectExcel() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.xlsx,.xls';
-    input.onchange = e => {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onload = ev => {
-            const wb = XLSX.read(ev.target.result);
-            const sheet = wb.Sheets[wb.SheetNames[0]];
-            const data = XLSX.utils.sheet_to_json(sheet, {header:1});
-            processExcelData(data);
+    const i = document.createElement('input');
+    i.type = 'file'; i.accept = '.xlsx,.xls';
+    i.onchange = e => {
+        const f = new FileReader();
+        f.onload = ev => {
+            const data = XLSX.utils.sheet_to_json(XLSX.read(ev.target.result).Sheets[0],{header:1});
+            processData(data);
         };
-        reader.readAsArrayBuffer(file);
+        f.readAsArrayBuffer(e.target.files[0]);
     };
-    input.click();
+    i.click();
 }
 
-function processExcelData(data) {
-    allPoints = [];
-    pointPlot = [];
-    document.getElementById('resultText').innerHTML = '';
+// 解析数据
+function processData(data) {
+    allPoints = []; dataPoints = [];
+    document.querySelector('#resultText').innerHTML = '';
     document.querySelector('#resultTable tbody').innerHTML = '';
-    
-    for(let i=1; i<data.length; i++) {
-        const row = data[i];
-        if(!row || row.length <9) continue;
-        const NO = row[0] || i;
-        const ca = Number(row[1])||0, mg=Number(row[2])||0, k=Number(row[3])||0, na=Number(row[4])||0;
-        const hco3=Number(row[5])||0, co3=Number(row[6])||0, so4=Number(row[7])||0, cl=Number(row[8])||0;
+    const s3 = Math.sqrt(3)/2;
 
-        // 当量浓度计算
-        const caEq = ca/(CONST.Ca/2), mgEq=mg/(CONST.Mg/2);
-        const kEq=k/CONST.K, naEq=na/CONST.Na;
-        const catTotal = caEq+mgEq+kEq+naEq;
-        
-        const hco3Eq = hco3/CONST.HCO3, co3Eq=co3/(CONST.CO3/2);
-        const so4Eq=so4/(CONST.SO4/2), clEq=cl/CONST.Cl;
-        const aniTotal = hco3Eq+co3Eq+so4Eq+clEq;
+    for(let i=1;i<data.length;i++){
+        const r=data[i]; if(!r||r.length<9)continue;
+        const NO=r[0]||i;
+        const ca=+r[1]||0,mg=+r[2]||0,k=+r[3]||0,na=+r[4]||0;
+        const hco3=+r[5]||0,co3=+r[6]||0,so4=+r[7]||0,cl=+r[8]||0;
+
+        // 当量计算
+        const caE=ca/(CONST.Ca/2),mgE=mg/(CONST.Mg/2),naE=na/CONST.Na,kE=k/CONST.K;
+        const hco3E=hco3/CONST.HCO3,co3E=co3/(CONST.CO3/2),so4E=so4/(CONST.SO4/2),clE=cl/CONST.Cl;
+        const cTotal=caE+mgE+naE+kE;
+        const aTotal=hco3E+co3E+so4E+clE;
 
         // 百分比
-        const caPer = (caEq/catTotal*100).toFixed(1);
-        const mgPer = (mgEq/catTotal*100).toFixed(1);
-        const nakPer = ((kEq+naEq)/catTotal*100).toFixed(1);
-        const hcPer = ((hco3Eq+co3Eq)/aniTotal*100).toFixed(1);
-        const soPer = (so4Eq/aniTotal*100).toFixed(1);
-        const clPer = (clEq/aniTotal*100).toFixed(1);
+        const caP=(caE/cTotal*100).toFixed(1);
+        const mgP=(mgE/cTotal*100).toFixed(1);
+        const nkP=((naE+kE)/cTotal*100).toFixed(1);
+        const hcP=((hco3E+co3E)/aTotal*100).toFixed(1);
+        const soP=(so4E/aTotal*100).toFixed(1);
+        const clP=(clE/aTotal*100).toFixed(1);
 
-        // 坐标计算
-        const cationPoint = calcCationPoint(caPer, mgPer, nakPer);
-        const anionPoint = calcAnionPoint(clPer, soPer, hcPer);
-        const diamondPoint = calcDiamondPoint(nakPer, hcPer);
+        // 坐标
+        const cx = caP/100*0 + mgP/100*0.5 + nkP/100*1;
+        const cy = caP/100*0 + mgP/100*s3 + nkP/100*0;
+        const ax = clP/100*1.2 + soP/100*1.7 + hcP/100*2.2;
+        const ay = clP/100*0 + soP/100*s3 + hcP/100*0;
+        const dx = 0.85 + (nkP/100)*0.5;
+        const dy = s3+0.15 - (hcP/100)*0.3;
 
-        const zone = determineZone(diamondPoint);
-        const type = determineWaterType(diamondPoint);
+        // 类型
+        const type = dx<1.1&&dy>s3+0.15?"碳酸盐型":dx>1.1&&dy>s3+0.15?"硫酸盐型":dx<1.1?"钙镁型":"钠型";
+        const zone = "5/6/7/8/9区";
 
-        allPoints.push({
-            NO, cationX:cationPoint.x,cationY:cationPoint.y,
-            anionX:anionPoint.x,anionY:anionPoint.y,
-            x:diamondPoint.x,y:diamondPoint.y,
-            caPer,mgPer,nakPer,hcPer,soPer,clPer,zone,type
-        });
-        addResultText(NO,caPer,mgPer,nakPer,hcPer,soPer,clPer,zone,type);
+        allPoints.push({NO,caP,mgP,nkP,hcP,soP,clP,zone,type});
+        addPoint(cx,cy,NO,'blue','triangle-up');
+        addPoint(ax,ay,NO,'red','triangle-up');
+        addPoint(dx,dy,NO,'orange','circle');
+
+        // 输出
+        document.querySelector('#resultText').innerHTML += `[${NO}] Ca=${caP}% Mg=${mgP}% Na+K=${nkP}%<br>HCO3=${hcP}% SO4=${soP}% Cl=${clP}% → ${zone} | ${type}<br>————<br>`;
+        document.querySelector('#resultTable tbody').innerHTML += `<tr><td>${NO}</td><td>${caP}</td><td>${mgP}</td><td>${nkP}</td><td>${hcP}</td><td>${soP}</td><td>${clP}</td><td>${zone}</td><td>${type}</td></tr>`;
     }
-    renderAllPoints();
-    renderTable();
+    refreshPlot();
 }
 
-// 阳离子点位
-function calcCationPoint(caPer, mgPer, nakPer) {
-    const ca = Number(caPer)/100, mg = Number(mgPer)/100, nak = Number(nakPer)/100;
-    const sqrt3 = Math.sqrt(3)/2;
-    return {x: ca*0 + mg*0.5 + nak*1, y: ca*0 + mg*sqrt3 + nak*0};
-}
-
-// 阴离子点位
-function calcAnionPoint(clPer, so4Per, hcPer) {
-    const cl = Number(clPer)/100, so4 = Number(so4Per)/100, hc = Number(hcPer)/100;
-    const sqrt3 = Math.sqrt(3)/2;
-    return {x: cl*1.2 + so4*1.7 + hc*2.2, y: cl*0 + so4*sqrt3 + hc*0};
-}
-
-// 菱形域点位
-function calcDiamondPoint(nakPer, hcPer) {
-    const p = parallelogram;
-    const nak = Number(nakPer)/100;
-    const hc = Number(hcPer)/100;
-
-    const bottomPoint = {
-        x: p.bottom.x + (p.left.x - p.bottom.x)*nak,
-        y: p.bottom.y + (p.left.y - p.bottom.y)*nak
-    };
-    const rightPoint = {
-        x: p.bottom.x + (p.right.x - p.bottom.x)*hc,
-        y: p.bottom.y + (p.right.y - p.bottom.y)*hc
-    };
-
-    const line1_p1 = bottomPoint;
-    const line1_p2 = {x: bottomPoint.x + (p.right.x - p.bottom.x), y: bottomPoint.y + (p.right.y - p.bottom.y)};
-    const line2_p1 = rightPoint;
-    const line2_p2 = {x: rightPoint.x + (p.left.x - p.bottom.x), y: rightPoint.y + (p.left.y - p.bottom.y)};
-
-    return lineIntersection(line1_p1, line1_p2, line2_p1, line2_p2);
-}
-
-// 区域判断
-function determineZone(point) {
-    const p = parallelogram;
-    const leftMid = midPoint(p.left, p.top);
-    const rightMid = midPoint(p.right, p.bottom);
-    const topMid = midPoint(p.top, p.right);
-    const bottomMid = midPoint(p.bottom, p.left);
-    const center = lineIntersection(leftMid, rightMid, topMid, bottomMid);
-
-    const zones = [
-        {pts: [[leftMid.x, leftMid.y], [p.top.x, p.top.y], [topMid.x, topMid.y]], zone:"1、3、6区"},
-        {pts: [[center.x, center.y], [leftMid.x, leftMid.y], [topMid.x, topMid.y]], zone:"1、3、9区"},
-        {pts: [[bottomMid.x, bottomMid.y], [p.left.x, p.left.y], [leftMid.x, leftMid.y], [center.x, center.y]], zone:"1、4、5区"},
-        {pts: [[center.x, center.y], [topMid.x, topMid.y], [p.right.x, p.right.y], [rightMid.x, rightMid.y]], zone:"2、3、7区"},
-        {pts: [[rightMid.x, rightMid.y], [center.x, center.y], [bottomMid.x, bottomMid.y]], zone:"2、4、9区"},
-        {pts: [[bottomMid.x, bottomMid.y], [rightMid.x, rightMid.y], [p.bottom.x, p.bottom.y]], zone:"2、4、8区"}
-    ];
-
-    for(const z of zones) {
-        if(isPointInPolygon(point, z.pts)) return z.zone;
-    }
-    return "9区";
-}
-
-// 点在多边形内
-function isPointInPolygon(point, polygon) {
-    let inside = false;
-    let j = polygon.length - 1;
-    for (let i = 0; i < polygon.length; i++) {
-        const xi = polygon[i][0], yi = polygon[i][1];
-        const xj = polygon[j][0], yj = polygon[j][1];
-        const intersect = ((yi > point.y) != (yj > point.y)) &&
-            (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
-        if (intersect) inside = !inside;
-        j = i;
-    }
-    return inside;
-}
-
-// 水化学类型
-function determineWaterType(point) {
-    const cx = (parallelogram.left.x + parallelogram.right.x) / 2;
-    const cy = (parallelogram.top.y + parallelogram.bottom.y) / 2;
-    if (point.x < cx && point.y > cy) return "碳酸盐型水";
-    if (point.x > cx && point.y > cy) return "硫酸盐-氯化物型水";
-    if (point.x < cx && point.y < cy) return "钙镁型水";
-    return "钠-氯化物型水";
-}
-
-// 渲染数据点
-function renderAllPoints() {
-    pointPlot = [];
-    let catX = [], catY = [], catText = [];
-    let anX = [], anY = [], anText = [];
-    let diaX = [], diaY = [], diaText = [];
-
-    allPoints.forEach(p => {
-        catX.push(p.cationX); catY.push(p.cationY); catText.push(p.NO);
-        anX.push(p.anionX); anY.push(p.anionY); anText.push(p.NO);
-        diaX.push(p.x); diaY.push(p.y); diaText.push(p.NO);
-    });
-
-    pointPlot.push({
-        type:'scatter', x:catX, y:catY, mode:'markers+text',text:catText,textposition:'top right',
-        marker:{color:'blue', size:6, symbol:'triangle-up'}, textfont:{size:8}, hoverinfo:'text',showlegend:false
-    });
-    pointPlot.push({
-        type:'scatter', x:anX, y:anY, mode:'markers+text',text:anText,textposition:'top right',
-        marker:{color:'green', size:6, symbol:'triangle-up'}, textfont:{size:8}, hoverinfo:'text',showlegend:false
-    });
-    pointPlot.push({
-        type:'scatter', x:diaX, y:diaY, mode:'markers+text',text:diaText,textposition:'top right',
-        marker:{color:'orange', size:6, symbol:'circle'}, textfont:{size:8}, hoverinfo:'text',showlegend:false
-    });
-    renderFullPlot();
-}
-
-// 辅助输出
-function addResultText(NO,ca,mg,nak,hc,so,cl,zone,type) {
-    const div = document.getElementById('resultText');
-    div.innerHTML += `[${NO}] Ca=${ca}% | Mg=${mg}% | Na+K=${nak}% | 碱=${hc}% | SO4=${so}% | Cl=${cl}%<br>→ ${zone} | ${type}<br>————<br>`;
-}
-
-function renderTable() {
-    const tb = document.querySelector('#resultTable tbody');
-    allPoints.forEach(p => {
-        tb.innerHTML += `<tr>
-            <td>${p.NO}</td><td>${p.caPer}</td><td>${p.mgPer}</td><td>${p.nakPer}</td>
-            <td>${p.hcPer}</td><td>${p.soPer}</td><td>${p.clPer}</td><td>${p.zone}</td><td>${p.type}</td>
-        </tr>`;
+// 添加数据点
+function addPoint(x,y,text,color,sym){
+    dataPoints.push({
+        type:'scatter',x:[x],y:[y],mode:'markers+text',text:text,textposition:'top right',
+        marker:{color,size:7,symbol:sym},textfont:{size:9},showlegend:false
     });
 }
 
 // 导出
-function exportImage() {
-    Plotly.downloadImage('plotArea', {format:'png', width:1600, height:900, filename:'Piper三线图'});
-}
-
-function exportExcel() {
-    const ws = XLSX.utils.json_to_sheet(allPoints);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "分析结果");
-    XLSX.writeFile(wb, "地下水Piper分析结果.xlsx");
-}
-
-// 返回指定主页（已修复）
-function goHome() {
-    window.location.href = "https://wordtrainer.github.io/";
-}
+function exportImage(){Plotly.downloadImage('plotArea',{format:'png',width:1600,height:900,filename:'Piper三线图'});}
+function exportExcel(){XLSX.writeFile(XLSX.utils.book_new(XLSX.utils.json_to_sheet(allPoints)),"地下水分析结果.xlsx");}
+function goHome(){window.location.href="https://wordtrainer.github.io/";}
 </script>
 </body>
 </html>
