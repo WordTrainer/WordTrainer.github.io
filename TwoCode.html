@@ -7,7 +7,7 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: "Microsoft Yahei", Arial, sans-serif;
+            font-family: "Microsoft Yahei", sans-serif;
             max-width: 480px;
             margin: 0 auto 60px;
             padding: 20px;
@@ -21,103 +21,84 @@
             box-shadow: 0 5px 20px rgba(0,0,0,0.1);
             margin-top: 80px;
         }
-        h2 { color: #333; margin-bottom: 25px; font-size: 24px; }
-        .pay-section {
-            margin-bottom: 30px;
+        h2 { margin-bottom: 25px; font-size: 24px; color: #333; }
+        .input-box {
+            margin-bottom: 20px;
+        }
+        #userPhone {
+            width: 100%;
+            padding: 14px;
+            font-size: 18px;
+            border: 2px solid #eee;
+            border-radius: 8px;
+            text-align: center;
+            outline: none;
+        }
+        #userPhone:focus {
+            border-color: #0088ff;
+        }
+        .pay-box {
             padding: 20px;
             border: 2px dashed #07c160;
             border-radius: 10px;
             background: #f8fffa;
+            margin: 20px 0;
         }
         .pay-title {
             font-size: 18px;
             color: #07c160;
-            margin-bottom: 15px;
-            font-weight: 600;
+            font-weight: bold;
+            margin-bottom: 10px;
         }
         .pay-desc {
             font-size: 15px;
             color: #666;
-            margin-bottom: 20px;
-            line-height: 1.8;
+            line-height: 1.7;
+            margin-bottom: 15px;
         }
-        .dev-tip {
+        #pay-code-img {
+            width: 260px;
+            height: 260px;
+            margin: 0 auto;
+            border: 1px solid #eee;
+            border-radius: 8px;
+        }
+        .tip {
             color: #ff5500;
             font-weight: bold;
             font-size: 14px;
             margin-top: 10px;
         }
-        #pay-code {
-            width: 280px;
-            height: 280px;
-            margin: 0 auto;
-            border: 1px solid #eee;
-            border-radius: 8px;
-            background: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-        }
-        #pay-code img { width: 100%; height: 100%; object-fit: contain; }
-        .unlock-tip {
-            color: #07c160;
-            font-size: 16px;
-            font-weight: 600;
-            margin: 15px 0;
+        .qrcode-box {
             display: none;
+            margin-top: 30px;
         }
-        .phone-section { display: none; margin: 20px 0; }
-        #phone-input {
-            width: 100%;
-            padding: 14px 18px;
-            font-size: 18px;
-            border: 2px solid #eee;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            text-align: center;
-            outline: none;
-        }
-        #phone-input:focus { border-color: #0088ff; }
-        .confirm-phone-btn {
-            padding: 12px 30px;
-            background: #0088ff;
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        .dial-qr-section { display: none; margin-top: 20px; }
-        .qr-text {
+        .qrcode-text {
             font-size: 16px;
             color: #333;
             margin-bottom: 15px;
             font-weight: 500;
         }
-        #qrcode-container {
+        #qrcodeContainer {
             width: 280px;
             height: 280px;
             margin: 0 auto;
-            background: #fff;
         }
         .top-nav {
             background:#2ea44f;
-            padding:15px 20px;
+            padding:15px;
             display:flex;
             gap:15px;
             align-items:center;
             justify-content:center;
-            flex-wrap:wrap;
-            box-shadow:0 2px 8px rgba(0,0,0,0.1);
             position:fixed;
             top:0; left:0; right:0;
             z-index:999;
         }
-        .nav-link { color: white; text-decoration: none; font-size: 15px; font-weight: 500; }
-        .nav-link.active { font-weight: bold; text-decoration: underline; }
+        .nav-link { color: white; text-decoration: none; font-size: 15px; }
+        .nav-link.active { font-weight: bold; }
         .back-btn {
-            padding:10px 20px;
+            padding:10px 25px;
             background:#2ea44f;
             color:white;
             border:none;
@@ -125,38 +106,10 @@
             cursor:pointer;
             margin-top:30px;
         }
-        /* 开发者通知区域 */
-        .dev-notice-area {
-            margin-top: 40px;
-            padding: 15px;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            background: #fafafa;
-        }
-        .dev-notice-title {
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: #333;
-        }
-        #notice-phone {
-            width: 80%;
-            padding: 10px;
-            margin-bottom: 10px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            text-align: center;
-        }
-        #send-notice-btn {
-            padding: 10px 20px;
-            background: #07c160;
-            color: #fff;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-        }
     </style>
 </head>
 <body>
+
 <nav class="top-nav">
     <a href="./index.html" class="nav-link">单词训练</a>
     <a href="./TwoCode.html" class="nav-link active">挪车付费</a>
@@ -166,114 +119,73 @@
 <div class="container">
     <h2>临时停车-付费1元解锁挪车拨号</h2>
 
-    <div class="pay-section">
-        <div class="pay-title">📢 请先支付1元解锁挪车拨号权限</div>
-        <div class="pay-desc">
-            1. 微信扫描下方付款码支付1元<br>
-            2. 开发者确认到账后<strong>自动解锁</strong><br>
-            3. 解锁后输入手机号，确认生成拨号二维码
-        </div>
-        <div class="dev-tip">* 付款后无需手动操作，等待自动解锁</div>
-        <div id="pay-code">
-            <img src="./wechat-pay-qr.png" alt="微信收款码">     
-        </div>
-    </div>
-
-    <div class="unlock-tip" id="unlock-tip">
-        ✅ 支付已确认，解锁成功！请输入车主手机号
-    </div>
-
-    <div class="phone-section" id="phone-section">
-        <input 
-            type="tel" 
-            id="phone-input" 
-            placeholder="请输入11位车主手机号（如13800138000）" 
+    <!-- 第一步：输入手机号 -->
+    <div class="input-box">
+        <input
+            type="tel"
+            id="userPhone"
+            placeholder="请输入你的11位手机号"
             maxlength="11"
         >
-        <button class="confirm-phone-btn" onclick="generatePhoneQR()">确认生成拨号二维码</button>
-    </div>
-    
-    <div class="dial-qr-section" id="dial-qr-section">
-        <div class="qr-text">临时停车，敬请谅解！挪车请致电：</div>
-        <div id="qrcode-container"></div>
     </div>
 
-    <!-- ==============================================
-     开发者通知区域：你按F12控制台输入 或 页面按钮触发
-     ============================================== -->
-    <div class="dev-notice-area">
-        <div class="dev-notice-title">开发者操作区（仅你可见）</div>
-        <input type="tel" id="notice-phone" placeholder="输入对方手机号（可选）" maxlength="11">
-        <button id="send-notice-btn" onclick="sendManualNotice()">🔔 发送“已到账解锁”通知</button>
-        <div style="font-size:12px; color:#666; margin-top:8px;">
-            也可按 F12 → Console 输入：<code>unlockByDev()</code>
+    <!-- 第二步：支付 -->
+    <div class="pay-box" id="payBox">
+        <div class="pay-title">请支付1元生成挪车二维码</div>
+        <div class="pay-desc">
+            输入手机号 → 扫码支付1元 → 开发者确认 → 自动生成挪车码
+        </div>
+        <img id="pay-code-img" src="./wechat-pay-qr.png" alt="微信收款码">
+        <div class="tip">付款后等待自动生成二维码，无需操作</div>
+    </div>
+
+    <!-- 第三步：生成挪车码（自动显示） -->
+    <div class="qrcode-box" id="qrcodeBox">
+        <div class="qrcode-text">✅ 挪车拨号二维码已生成</div>
+        <div id="qrcodeContainer"></div>
+        <div style="margin-top:15px; font-size:15px; color:#333;">
+            扫码即可拨号挪车
         </div>
     </div>
 
-    <button class="back-btn" onclick="window.location.href='/'">返回导航主页</button>
+    <button class="back-btn" onclick="window.location.href='/'">返回主页</button>
 </div>
 
 <script src="https://cdn.bootcdn.net/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
-    let isUnlocked = false;
+    // 全局保存用户输入的手机号
+    let userPhone = "";
 
-    // ==============================================
-    // 核心：开发者确认到款 → 执行此函数自动解锁
-    // 调用方式：
-    // 1. 页面按钮点“发送解锁通知”
-    // 2. 控制台输入：unlockByDev()
-    // ==============================================
-    function unlockByDev() {
-        isUnlocked = true;
-        const tip = document.getElementById('unlock-tip');
-        const phoneBox = document.getElementById('phone-section');
-        tip.style.display = 'block';
-        phoneBox.style.display = 'block';
-        alert('✅ 支付已确认，自动解锁成功！');
-    }
+    // =========================================
+    // 开发者确认收款 → 自动生成该用户的挪车二维码
+    // 你只需要：F12 → 控制台 → 输入 confirmPay()
+    // =========================================
+    function confirmPay() {
+        userPhone = document.getElementById("userPhone").value.trim();
+        const reg = /^1[3-9]\d{9}$/;
 
-    // 生成拨号二维码
-    function generatePhoneQR() {
-        if (!isUnlocked) {
-            alert('❌ 请先等待支付确认解锁！');
+        if (!reg.test(userPhone)) {
+            alert("请先输入有效的11位手机号！");
             return;
         }
-        const phone = document.getElementById('phone-input').value.trim();
-        const phoneReg = /^1[3-9]\d{9}$/;
-        if (!phoneReg.test(phone)) {
-            alert('❌ 请输入有效的11位手机号！');
-            return;
-        }
-        const container = document.getElementById('qrcode-container');
-        container.innerHTML = '';
+
+        // 隐藏支付区，显示二维码
+        document.getElementById("payBox").style.display = "none";
+        document.getElementById("qrcodeBox").style.display = "block";
+
+        // 生成拨号二维码
+        const container = document.getElementById("qrcodeContainer");
+        container.innerHTML = "";
         new QRCode(container, {
-            text: `tel:${phone}`,
+            text: `tel:${userPhone}`,
             width: 280,
-            colorDark: '#000',
-            colorLight: '#fff',
+            height: 280,
+            colorDark: "#000",
+            colorLight: "#fff",
             correctLevel: QRCode.CorrectLevel.H
         });
-    }
 
-    // ==============================================
-    // 开发者手动发送通知（给对方发消息）
-    // 依赖：你的微信/企业微信/微信小程序消息推送
-    // 这里先实现前端弹窗通知（真实场景需后端接口）
-    // ==============================================
-    function sendManualNotice() {
-        const phone = document.getElementById('notice-phone').value.trim();
-        if (!phone) {
-            alert('请输入对方手机号（用于发送通知）');
-            return;
-        }
-        // 前端模拟通知（真实场景替换为你的后端接口）
-        if (confirm(`即将给 ${phone} 发送“支付1元已到账，已解锁挪车权限”通知？`)) {
-            // 👉 这里替换为你的后端请求：
-            // fetch('/api/sendNotice', { method: 'POST', body: JSON.stringify({ phone }) })
-            alert(`✅ 已发送通知至 ${phone}：支付1元已到账，已解锁挪车拨号权限！`);
-            // 解锁页面
-            unlockByDev();
-        }
+        alert("✅ 已确认收款！挪车二维码已自动生成");
     }
 </script>
 </body>
