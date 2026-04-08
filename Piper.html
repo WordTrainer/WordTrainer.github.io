@@ -9,16 +9,37 @@
     <style>
         .container { width: 98%; margin: 10px auto; }
         #piperChart { width: 100%; height: 600px; border: 1px solid #eee; }
-        .btn-group { margin: 10px 0; }
-        .btn-group button, .import-btn {
-            padding: 8px 15px; margin-right: 5px;
-            border: 1px solid #ccc; border-radius: 4px;
-            background: #f8f8f8; cursor: pointer;
+        .btn-group { margin: 10px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        /* 统一按钮样式 */
+        .common-btn {
+            padding: 8px 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #f8f8f8;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .common-btn:hover { background: #e8e8e8; border-color: #adadad; }
+        /* 导入按钮容器（核心修复：确保按钮显示） */
+        .import-btn-wrap {
+            position: relative;
             display: inline-block;
         }
-        .btn-group button:hover, .import-btn:hover { background: #e8e8e8; }
         /* 隐藏原生文件输入框 */
-        #excelFile { display: none; }
+        #excelFile {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+            z-index: 10;
+        }
         #dataTable {
             width: 100%; border-collapse: collapse; margin: 10px 0;
         }
@@ -78,14 +99,17 @@
         <h2 style="text-align: center;">地下水三线图分析</h2>
         <div id="piperChart"></div>
         <div class="btn-group">
-            <button id="addRegion">添加分区数据</button>
-            <label class="import-btn" for="excelFile">从EXCEL导入</label>
-            <input type="file" id="excelFile" accept=".xlsx,.xls">
-            <button id="addRegionLabel">添加分区标注</button>
-            <button id="delRegionLabel">删除分区标注</button>
-            <button id="exportChart">导出三线图</button>
-            <button id="exportDGV">输出到DGV</button>
-            <button id="exportExcel">输出到EXCEL</button>
+            <button id="addRegion" class="common-btn">添加分区数据</button>
+            <!-- 修复：重新封装导入按钮，确保显示 -->
+            <div class="import-btn-wrap">
+                <button class="common-btn">从EXCEL导入</button>
+                <input type="file" id="excelFile" accept=".xlsx,.xls">
+            </div>
+            <button id="addRegionLabel" class="common-btn">添加分区标注</button>
+            <button id="delRegionLabel" class="common-btn">删除分区标注</button>
+            <button id="exportChart" class="common-btn">导出三线图</button>
+            <button id="exportDGV" class="common-btn">输出到DGV</button>
+            <button id="exportExcel" class="common-btn">输出到EXCEL</button>
         </div>
         <table id="dataTable">
             <thead>
@@ -628,7 +652,7 @@
             openModal(); // 打开新增弹窗
         });
 
-        // Excel导入按钮绑定
+        // Excel导入按钮绑定（核心：确保事件触发）
         document.getElementById('excelFile').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (file) {
