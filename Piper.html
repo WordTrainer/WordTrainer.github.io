@@ -24,7 +24,7 @@
             justify-content: center;
         }
         .common-btn:hover { background: #e8e8e8; border-color: #adadad; }
-        /* 导入按钮容器（核心修复：确保按钮显示） */
+        /* 导入按钮容器 */
         .import-btn-wrap {
             position: relative;
             display: inline-block;
@@ -100,7 +100,6 @@
         <div id="piperChart"></div>
         <div class="btn-group">
             <button id="addRegion" class="common-btn">添加分区数据</button>
-            <!-- 修复：重新封装导入按钮，确保显示 -->
             <div class="import-btn-wrap">
                 <button class="common-btn">从EXCEL导入</button>
                 <input type="file" id="excelFile" accept=".xlsx,.xls">
@@ -249,8 +248,8 @@
                         const data = piperData[params.dataIndex];
                         return `
                             数据点${data.id}<br/>
-                            阳离子：Ca²+${data.Ca}% | Mg²+${data.Mg}% | Na++K+${data.NaK}%<br/>
-                            阴离子：HCO₃⁻+CO₃²⁻${data.HCO3CO3}% | SO₄²⁻${data.SO4}% | Cl⁻${data.Cl}%
+                            阳离子：Ca²+${data.Ca.toFixed(2)}% | Mg²+${data.Mg.toFixed(2)}% | Na++K+${data.NaK.toFixed(2)}%<br/>
+                            阴离子：HCO₃⁻+CO₃²⁻${data.HCO3CO3.toFixed(2)}% | SO₄²⁻${data.SO4.toFixed(2)}% | Cl⁻${data.Cl.toFixed(2)}%
                         `;
                     }
                 },
@@ -433,8 +432,8 @@
                     const data = piperData[idx];
                     $('#dataDetail').html(`
                         [数据点 ${data.id}]<br/>
-                        阳离子百分比：Ca²+${data.Ca}% | Mg²+${data.Mg}% | Na++K+${data.NaK}%<br/>
-                        阴离子百分比：HCO₃⁻+CO₃²⁻${data.HCO3CO3}% | SO₄²⁻${data.SO4}% | Cl⁻${data.Cl}%<br/>
+                        阳离子百分比：Ca²+${data.Ca.toFixed(2)}% | Mg²+${data.Mg.toFixed(2)}% | Na++K+${data.NaK.toFixed(2)}%<br/>
+                        阴离子百分比：HCO₃⁻+CO₃²⁻${data.HCO3CO3.toFixed(2)}% | SO₄²⁻${data.SO4.toFixed(2)}% | Cl⁻${data.Cl.toFixed(2)}%<br/>
                         水质评估：钠-氯化物型水，水质较差（受Na+、Cl-污染）
                     `);
                 }
@@ -545,7 +544,7 @@
             }
         }
 
-        // 8. Excel导入核心函数
+        // 8. Excel导入核心函数（适配原始含量数据，自动转换为百分比）
         function importExcel(file) {
             const reader = new FileReader();
             reader.onload = function(e) {
@@ -556,37 +555,64 @@
                     // 读取第一个工作表
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
-                    // 转换为JSON（表头匹配：序号、Ca²+、Mg²+、Na++K+、HCO₃⁻+CO₃²⁻、SO₄²⁻、Cl⁻）
-                    const excelData = XLSX.utils.sheet_to_json(worksheet, { header: ['id', 'Ca', 'Mg', 'NaK', 'HCO3CO3', 'SO4', 'Cl'] });
+                    // 转换为JSON（适配你的Excel列结构：序号、Ca²+、Mg²+、K+、Na+、HCO3-、CO3²-、SO4²-、Cl-）
+                    const excelData = XLSX.utils.sheet_to_json(worksheet, { 
+                        header: ['id', 'Ca', 'Mg', 'K', 'Na', 'HCO3', 'CO3', 'SO4', 'Cl', '矿化度'] 
+                    });
                     
                     // 过滤表头行，处理数据
                     const importList = [];
                     const errorList = [];
+                    
                     excelData.forEach((row, index) => {
                         // 跳过表头行（第一行）
                         if (index === 0) return;
                         // 空行跳过
-                        if (!row.id && !row.Ca && !row.Mg && !row.NaK && !row.HCO3CO3 && !row.SO4 && !row.Cl) return;
+                        if (!row.id && !row.Ca && !row.Mg && !row.K && !row.Na && !row.HCO3 && !row.CO3 && !row.SO4 && !row.Cl) return;
 
-                        // 类型转换
+                        // 类型转换（原始含量数据）
                         const id = parseInt(row.id) || 0;
                         const Ca = parseFloat(row.Ca) || 0;
                         const Mg = parseFloat(row.Mg) || 0;
-                        const NaK = parseFloat(row.NaK) || 0;
-                        const HCO3CO3 = parseFloat(row.HCO3CO3) || 0;
+                        const K = parseFloat(row.K) || 0;
+                        const Na = parseFloat(row.Na) || 0;
+                        const HCO3 = parseFloat(row.HCO3) || 0;
+                        const CO3 = parseFloat(row.CO3) || 0;
                         const SO4 = parseFloat(row.SO4) || 0;
                         const Cl = parseFloat(row.Cl) || 0;
 
-                        // 数据校验
-                        const cationSum = Ca + Mg + NaK;
-                        const anionSum = HCO3CO3 + SO4 + Cl;
-                        const isRowValid = Math.abs(cationSum - 100) <= 0.1 && Math.abs(anionSum - 100) <= 0.1;
+                        // 步骤1：合并列（K+→Na+合并为Na++K+；HCO3-→CO3²-合并为HCO3⁻+CO3²⁻）
+                        const NaK = Na + K;
+                        const HCO3CO3 = HCO3 + CO3;
 
-                        if (isRowValid) {
-                            importList.push({ id, Ca, Mg, NaK, HCO3CO3, SO4, Cl });
-                        } else {
-                            errorList.push(`第${index+1}行：阳离子总和${cationSum.toFixed(2)}%，阴离子总和${anionSum.toFixed(2)}%（需均为100%）`);
+                        // 步骤2：计算阳离子/阴离子总和（原始含量）
+                        const cationTotal = Ca + Mg + NaK; // 阳离子总含量
+                        const anionTotal = HCO3CO3 + SO4 + Cl; // 阴离子总含量
+
+                        // 步骤3：校验总和是否为0（避免除以0）
+                        if (cationTotal === 0 || anionTotal === 0) {
+                            errorList.push(`第${index+1}行：阳离子/阴离子总含量为0，无法计算百分比`);
+                            return;
                         }
+
+                        // 步骤4：转换为百分比（保留2位小数）
+                        const CaPercent = (Ca / cationTotal * 100).toFixed(2) * 1;
+                        const MgPercent = (Mg / cationTotal * 100).toFixed(2) * 1;
+                        const NaKPercent = (NaK / cationTotal * 100).toFixed(2) * 1;
+                        const HCO3CO3Percent = (HCO3CO3 / anionTotal * 100).toFixed(2) * 1;
+                        const SO4Percent = (SO4 / anionTotal * 100).toFixed(2) * 1;
+                        const ClPercent = (Cl / anionTotal * 100).toFixed(2) * 1;
+
+                        // 步骤5：添加到导入列表
+                        importList.push({ 
+                            id, 
+                            Ca: CaPercent, 
+                            Mg: MgPercent, 
+                            NaK: NaKPercent, 
+                            HCO3CO3: HCO3CO3Percent, 
+                            SO4: SO4Percent, 
+                            Cl: ClPercent 
+                        });
                     });
 
                     // 显示导入结果
@@ -596,13 +622,13 @@
                     
                     if (importList.length > 0) {
                         // 询问是否覆盖原有数据
-                        const isCover = confirm(`成功解析${importList.length}条有效数据，是否覆盖原有数据？（取消则追加）`);
+                        const isCover = confirm(`成功解析${importList.length}条有效数据（已自动转换为百分比），是否覆盖原有数据？（取消则追加）`);
                         if (isCover) {
                             piperData = importList;
                             // 重新排序ID
                             piperData.forEach((item, idx) => { item.id = idx + 1; });
                             importTitle.innerText = 'Excel导入成功';
-                            importMsg.innerText = `已覆盖原有数据，共导入${importList.length}条有效数据`;
+                            importMsg.innerText = `已覆盖原有数据，共导入${importList.length}条有效数据（原始含量→百分比转换完成）`;
                         } else {
                             // 追加数据，重新生成ID
                             const maxId = piperData.length > 0 ? Math.max(...piperData.map(item => item.id)) : 0;
@@ -611,7 +637,7 @@
                                 piperData.push(item);
                             });
                             importTitle.innerText = 'Excel导入成功';
-                            importMsg.innerText = `已追加${importList.length}条有效数据，当前总数据量：${piperData.length}条`;
+                            importMsg.innerText = `已追加${importList.length}条有效数据（原始含量→百分比转换完成），当前总数据量：${piperData.length}条`;
                         }
                         // 更新图表和表格
                         updateChartData();
@@ -652,7 +678,7 @@
             openModal(); // 打开新增弹窗
         });
 
-        // Excel导入按钮绑定（核心：确保事件触发）
+        // Excel导入按钮绑定
         document.getElementById('excelFile').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (file) {
@@ -688,8 +714,8 @@
         document.getElementById('exportExcel').addEventListener('click', () => {
             const ws = XLSX.utils.json_to_sheet(piperData);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Piper数据');
-            XLSX.writeFile(wb, 'Piper三线图数据.xlsx');
+            XLSX.utils.book_append_sheet(wb, ws, 'Piper数据（百分比）');
+            XLSX.writeFile(wb, 'Piper三线图数据（百分比）.xlsx');
         });
 
         // 10. 页面初始化
