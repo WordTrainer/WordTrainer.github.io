@@ -10,7 +10,6 @@
         .container { width: 98%; margin: 10px auto; }
         #piperChart { width: 100%; height: 600px; border: 1px solid #eee; }
         .btn-group { margin: 10px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-        /* 统一按钮样式 */
         .common-btn {
             padding: 8px 15px;
             border: 1px solid #ccc;
@@ -24,12 +23,10 @@
             justify-content: center;
         }
         .common-btn:hover { background: #e8e8e8; border-color: #adadad; }
-        /* 导入按钮容器 */
         .import-btn-wrap {
             position: relative;
             display: inline-block;
         }
-        /* 隐藏原生文件输入框 */
         #excelFile {
             position: absolute;
             top: 0;
@@ -52,7 +49,6 @@
             border: 1px solid #ccc; padding: 10px; min-height: 80px;
             background: #f9f9f9;
         }
-        /* 弹窗样式 */
         .modal {
             display: none; position: fixed; top: 0; left: 0;
             width: 100%; height: 100%; background: rgba(0,0,0,0.5);
@@ -73,13 +69,12 @@
         .btn-save { background: #007bff; color: #fff; }
         .btn-cancel { background: #6c757d; color: #fff; }
         .error-tip { color: #dc3545; font-size: 12px; margin-top: 5px; display: none; }
-        /* 导入提示弹窗 */
         .import-modal {
             display: none; position: fixed; top: 50%; left: 50%;
             transform: translate(-50%, -50%); background: #fff;
             padding: 20px; border-radius: 8px; z-index: 1000;
             box-shadow: 0 0 15px rgba(0,0,0,0.3);
-            max-width: 500px;
+            max-width: 600px;
         }
         .import-modal h4 { margin-top: 0; }
         .import-modal .error-list {
@@ -122,7 +117,6 @@
         <div id="dataDetail"></div>
     </div>
 
-    <!-- 数据编辑弹窗 -->
     <div class="modal" id="dataModal">
         <div class="modal-content">
             <h3 id="modalTitle">添加分区数据</h3>
@@ -150,7 +144,6 @@
         </div>
     </div>
 
-    <!-- Excel导入提示弹窗 -->
     <div class="import-modal" id="importModal">
         <h4 id="importTitle">Excel导入结果</h4>
         <div id="importMsg">导入中...</div>
@@ -161,7 +154,6 @@
     </div>
 
     <script>
-        // 1. 全局变量定义
         let piperData = [
             { id: 1, Ca: 10.28, Mg: 6.05, NaK: 83.67, HCO3CO3: 14.08, SO4: 79.27, Cl: 6.65 },
             { id: 2, Ca: 20.15, Mg: 12.30, NaK: 67.55, HCO3CO3: 18.25, SO4: 72.10, Cl: 9.65 },
@@ -174,10 +166,10 @@
             { id: 9, Ca: 7.80, Mg: 10.50, NaK: 81.70, HCO3CO3: 16.50, SO4: 76.30, Cl: 7.20 },
             { id:10, Ca: 6.50, Mg: 8.80, NaK: 84.70, HCO3CO3: 14.80, SO4: 79.80, Cl: 5.40 }
         ];
-        let currentEditId = null; // 当前编辑的ID（null为新增）
-        let myChart = null; // ECharts实例
+        let currentEditId = null;
+        let myChart = null;
 
-        // 2. Piper三线图坐标转换核心函数
+        // 坐标转换函数（不变）
         function cationTriCoord(Ca, Mg, NaK) {
             const baseX = 0.2;
             const baseY = 1.0;
@@ -203,17 +195,16 @@
             return [x, y];
         }
 
-        // 3. 初始化图表
+        // 初始化图表（不变）
         function initChart() {
             const chartDom = document.getElementById('piperChart');
             myChart = echarts.init(chartDom);
-            updateChartData(); // 更新图表数据并渲染
+            updateChartData();
             window.addEventListener('resize', () => myChart.resize());
         }
 
-        // 4. 更新图表数据
+        // 更新图表数据（不变）
         function updateChartData() {
-            // 预处理数据点坐标
             const cationPoints = [];
             const anionPoints = [];
             const diamondPoints = [];
@@ -239,7 +230,6 @@
                 });
             });
 
-            // 图表配置
             const option = {
                 title: { show: false },
                 tooltip: {
@@ -265,13 +255,11 @@
                     axisLabel: { show: false }, splitLine: { show: false }
                 },
                 series: [
-                    // 左侧阳离子三角
                     {
                         name: '阳离子三角', type: 'polygon', z: 1,
                         itemStyle: { color: 'transparent', borderColor: '#1E90FF', borderWidth: 2 },
                         data: [[0.2, 1.0], [1.2, 1.0], [0.7, 1.0 - Math.sqrt(3)/2 * 1.0]]
                     },
-                    // 左三角网格
                     {
                         name: '左三角网格', type: 'line', z: 2,
                         lineStyle: { color: '#B0C4DE', type: 'dashed', width: 1 },
@@ -294,7 +282,6 @@
                             return lines;
                         })()
                     },
-                    // 左三角标注
                     {
                         name: '左三角标注', type: 'scatter', z: 3, symbol: 'none',
                         label: { show: true, fontSize: 11, color: '#1E90FF' },
@@ -308,16 +295,12 @@
                             { value: [0.9, 1.0], label: { formatter: '20%' } },
                         ]
                     },
-                    // 左三角数据点
                     { name: '阳离子数据点', type: 'scatter', z: 4, symbolSize: 8, data: cationPoints },
-
-                    // 右侧阴离子三角
                     {
                         name: '阴离子三角', type: 'polygon', z: 1,
                         itemStyle: { color: 'transparent', borderColor: '#DC143C', borderWidth: 2 },
                         data: [[1.3, 1.0], [2.3, 1.0], [1.8, 1.0 - Math.sqrt(3)/2 * 1.0]]
                     },
-                    // 右三角网格
                     {
                         name: '右三角网格', type: 'line', z: 2,
                         lineStyle: { color: '#F08080', type: 'dashed', width: 1 },
@@ -340,7 +323,6 @@
                             return lines;
                         })()
                     },
-                    // 右三角标注
                     {
                         name: '右三角标注', type: 'scatter', z: 3, symbol: 'none',
                         label: { show: true, fontSize: 11, color: '#DC143C' },
@@ -354,16 +336,12 @@
                             { value: [2.1, 1.0], label: { formatter: '20%' } },
                         ]
                     },
-                    // 右三角数据点
                     { name: '阴离子数据点', type: 'scatter', z: 4, symbolSize: 8, data: anionPoints },
-
-                    // 中间菱形
                     {
                         name: '中间菱形', type: 'polygon', z: 1,
                         itemStyle: { color: 'transparent', borderColor: '#228B22', borderWidth: 2 },
                         data: [[1.2, 0.2], [1.8, 0.2], [1.8, 1.2], [1.2, 1.2]]
                     },
-                    // 菱形网格
                     {
                         name: '菱形网格', type: 'line', z: 2,
                         lineStyle: { color: '#90EE90', type: 'dashed', width: 1 },
@@ -382,7 +360,6 @@
                             return lines;
                         })()
                     },
-                    // 菱形标注
                     {
                         name: '菱形标注', type: 'scatter', z: 3, symbol: 'none',
                         label: { show: true, fontSize: 11, color: '#228B22' },
@@ -397,17 +374,16 @@
                             { value: [1.8, 0.15],  label: { formatter: '80%' } },
                         ]
                     },
-                    // 菱形数据点
                     { name: '菱形数据点', type: 'scatter', z: 4, symbolSize: 10, data: diamondPoints }
                 ]
             };
-            myChart.setOption(option, true); // 重置并渲染图表
+            myChart.setOption(option, true);
         }
 
-        // 5. 填充数据表格
+        // 渲染表格（不变）
         function renderTable() {
             const tableBody = $('#dataTable tbody');
-            tableBody.empty(); // 清空原有内容
+            tableBody.empty();
             piperData.forEach(item => {
                 const tr = $(`<tr data-index="${item.id-1}"></tr>`);
                 tr.append(`<td>${item.id}</td>`);
@@ -423,9 +399,8 @@
                 </td>`);
                 tableBody.append(tr);
             });
-            // 绑定表格选中事件
             $('#dataTable tbody tr').click(function(e) {
-                if (!$(e.target).is('button')) { // 点击按钮时不触发选中
+                if (!$(e.target).is('button')) {
                     $('#dataTable tbody tr').removeClass('selected');
                     $(this).addClass('selected');
                     const idx = $(this).data('index');
@@ -438,23 +413,20 @@
                     `);
                 }
             });
-            // 初始化选中第一行
             if (piperData.length > 0) {
                 $('#dataTable tbody tr:first').click();
             }
         }
 
-        // 6. 弹窗操作函数
-        // 打开弹窗（新增/编辑）
+        // 弹窗操作（仅移除保存时的百分比校验）
         function openModal(id = null) {
             currentEditId = id;
             const modal = document.getElementById('dataModal');
             const modalTitle = document.getElementById('modalTitle');
             const editId = document.getElementById('editId');
             const errorTip = document.getElementById('errorTip');
-            errorTip.style.display = 'none'; // 隐藏错误提示
+            errorTip.style.display = 'none';
 
-            // 重置输入框
             document.getElementById('editCa').value = '';
             document.getElementById('editMg').value = '';
             document.getElementById('editNaK').value = '';
@@ -463,7 +435,6 @@
             document.getElementById('editCl').value = '';
 
             if (id) {
-                // 编辑模式
                 modalTitle.innerText = '编辑分区数据';
                 const data = piperData.find(item => item.id === id);
                 editId.value = data.id;
@@ -474,7 +445,6 @@
                 document.getElementById('editSO4').value = data.SO4;
                 document.getElementById('editCl').value = data.Cl;
             } else {
-                // 新增模式
                 modalTitle.innerText = '添加分区数据';
                 const newId = piperData.length > 0 ? Math.max(...piperData.map(item => item.id)) + 1 : 1;
                 editId.value = newId;
@@ -482,16 +452,14 @@
             modal.style.display = 'flex';
         }
 
-        // 关闭弹窗
         function closeModal() {
             document.getElementById('dataModal').style.display = 'none';
             currentEditId = null;
         }
 
-        // 保存数据
+        // 核心修改：移除百分比总和校验
         function saveData() {
             const errorTip = document.getElementById('errorTip');
-            // 获取输入值
             const id = parseInt(document.getElementById('editId').value);
             const Ca = parseFloat(document.getElementById('editCa').value) || 0;
             const Mg = parseFloat(document.getElementById('editMg').value) || 0;
@@ -500,35 +468,26 @@
             const SO4 = parseFloat(document.getElementById('editSO4').value) || 0;
             const Cl = parseFloat(document.getElementById('editCl').value) || 0;
 
-            // 数据校验：阳离子/阴离子百分比之和需为100%（允许±0.1的误差）
-            const cationSum = Ca + Mg + NaK;
-            const anionSum = HCO3CO3 + SO4 + Cl;
-            const isValid = Math.abs(cationSum - 100) <= 0.1 && Math.abs(anionSum - 100) <= 0.1;
-
-            if (!isValid) {
-                errorTip.innerText = `数据校验失败！阳离子总和${cationSum.toFixed(2)}%（需100%），阴离子总和${anionSum.toFixed(2)}%（需100%）`;
+            // 仅校验非负（移除百分比总和校验）
+            if (Ca < 0 || Mg < 0 || NaK < 0 || HCO3CO3 < 0 || SO4 < 0 || Cl < 0) {
+                errorTip.innerText = '数据不能为负数！';
                 errorTip.style.display = 'block';
                 return;
             }
 
-            // 保存数据
             if (currentEditId) {
-                // 编辑模式
                 const idx = piperData.findIndex(item => item.id === currentEditId);
                 piperData[idx] = { id, Ca, Mg, NaK, HCO3CO3, SO4, Cl };
             } else {
-                // 新增模式
                 piperData.push({ id, Ca, Mg, NaK, HCO3CO3, SO4, Cl });
             }
 
-            // 更新图表和表格
             updateChartData();
             renderTable();
             closeModal();
             alert('数据保存成功！');
         }
 
-        // 7. 编辑/删除数据函数
         function editData(id) {
             openModal(id);
         }
@@ -536,7 +495,6 @@
         function deleteData(id) {
             if (confirm(`确定删除数据点${id}吗？`)) {
                 piperData = piperData.filter(item => item.id !== id);
-                // 重新排序ID（可选，保持序号连续）
                 piperData.forEach((item, idx) => { item.id = idx + 1; });
                 updateChartData();
                 renderTable();
@@ -544,58 +502,91 @@
             }
         }
 
-        // 8. Excel导入核心函数（适配原始含量数据，自动转换为百分比）
+        // 核心修改：Excel导入（模糊匹配列名+强制转换百分比+移除旧校验）
         function importExcel(file) {
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
-                    // 解析Excel文件
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
-                    // 读取第一个工作表
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
-                    // 转换为JSON（适配你的Excel列结构：序号、Ca²+、Mg²+、K+、Na+、HCO3-、CO3²-、SO4²-、Cl-）
-                    const excelData = XLSX.utils.sheet_to_json(worksheet, { 
-                        header: ['id', 'Ca', 'Mg', 'K', 'Na', 'HCO3', 'CO3', 'SO4', 'Cl', '矿化度'] 
-                    });
                     
-                    // 过滤表头行，处理数据
+                    // 关键：读取所有数据（不指定header，避免列名匹配错误）
+                    const excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                     const importList = [];
                     const errorList = [];
-                    
-                    excelData.forEach((row, index) => {
-                        // 跳过表头行（第一行）
-                        if (index === 0) return;
-                        // 空行跳过
-                        if (!row.id && !row.Ca && !row.Mg && !row.K && !row.Na && !row.HCO3 && !row.CO3 && !row.SO4 && !row.Cl) return;
 
-                        // 类型转换（原始含量数据）
-                        const id = parseInt(row.id) || 0;
-                        const Ca = parseFloat(row.Ca) || 0;
-                        const Mg = parseFloat(row.Mg) || 0;
-                        const K = parseFloat(row.K) || 0;
-                        const Na = parseFloat(row.Na) || 0;
-                        const HCO3 = parseFloat(row.HCO3) || 0;
-                        const CO3 = parseFloat(row.CO3) || 0;
-                        const SO4 = parseFloat(row.SO4) || 0;
-                        const Cl = parseFloat(row.Cl) || 0;
+                    // 第一步：提取表头行（第0行），模糊匹配列名
+                    const headerRow = excelData[0] || [];
+                    const colMap = {
+                        id: -1,
+                        Ca: -1,
+                        Mg: -1,
+                        K: -1,
+                        Na: -1,
+                        HCO3: -1,
+                        CO3: -1,
+                        SO4: -1,
+                        Cl: -1
+                    };
 
-                        // 步骤1：合并列（K+→Na+合并为Na++K+；HCO3-→CO3²-合并为HCO3⁻+CO3²⁻）
+                    // 模糊匹配列名（兼容任意列名/大小写/特殊符号）
+                    headerRow.forEach((colName, idx) => {
+                        const name = (colName + '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                        if (name.includes('序号') || name.includes('id')) colMap.id = idx;
+                        if (name.includes('ca') || name.includes('钙')) colMap.Ca = idx;
+                        if (name.includes('mg') || name.includes('镁')) colMap.Mg = idx;
+                        if (name.includes('k') || name.includes('钾')) colMap.K = idx;
+                        if (name.includes('na') || name.includes('钠')) colMap.Na = idx;
+                        if (name.includes('hco3') || name.includes('碳酸氢根')) colMap.HCO3 = idx;
+                        if (name.includes('co3') || name.includes('碳酸根')) colMap.CO3 = idx;
+                        if (name.includes('so4') || name.includes('硫酸根')) colMap.SO4 = idx;
+                        if (name.includes('cl') || name.includes('氯')) colMap.Cl = idx;
+                    });
+
+                    // 校验必须的列是否存在
+                    const requiredCols = ['Ca', 'Mg', 'K', 'Na', 'HCO3', 'CO3', 'SO4', 'Cl'];
+                    const missingCols = requiredCols.filter(col => colMap[col] === -1);
+                    if (missingCols.length > 0) {
+                        errorList.push(`缺少必要列：${missingCols.join(', ')}`);
+                        document.getElementById('importTitle').innerText = 'Excel导入失败';
+                        document.getElementById('importMsg').innerText = 'Excel列名不匹配！';
+                        document.getElementById('importErrorList').innerHTML = errorList.map(err => `<li>${err}</li>`).join('');
+                        document.getElementById('importModal').style.display = 'block';
+                        return;
+                    }
+
+                    // 第二步：处理数据行（从第1行开始）
+                    for (let i = 1; i < excelData.length; i++) {
+                        const row = excelData[i];
+                        if (!row || row.length === 0) continue; // 跳过空行
+
+                        // 提取数据（根据列映射）
+                        const id = colMap.id !== -1 ? (parseInt(row[colMap.id]) || i) : i;
+                        const Ca = parseFloat(row[colMap.Ca]) || 0;
+                        const Mg = parseFloat(row[colMap.Mg]) || 0;
+                        const K = parseFloat(row[colMap.K]) || 0;
+                        const Na = parseFloat(row[colMap.Na]) || 0;
+                        const HCO3 = parseFloat(row[colMap.HCO3]) || 0;
+                        const CO3 = parseFloat(row[colMap.CO3]) || 0;
+                        const SO4 = parseFloat(row[colMap.SO4]) || 0;
+                        const Cl = parseFloat(row[colMap.Cl]) || 0;
+
+                        // 合并列
                         const NaK = Na + K;
                         const HCO3CO3 = HCO3 + CO3;
 
-                        // 步骤2：计算阳离子/阴离子总和（原始含量）
-                        const cationTotal = Ca + Mg + NaK; // 阳离子总含量
-                        const anionTotal = HCO3CO3 + SO4 + Cl; // 阴离子总含量
+                        // 计算总和（避免除以0）
+                        const cationTotal = Ca + Mg + NaK;
+                        const anionTotal = HCO3CO3 + SO4 + Cl;
 
-                        // 步骤3：校验总和是否为0（避免除以0）
                         if (cationTotal === 0 || anionTotal === 0) {
-                            errorList.push(`第${index+1}行：阳离子/阴离子总含量为0，无法计算百分比`);
-                            return;
+                            errorList.push(`第${i+1}行：阳离子/阴离子总含量为0，跳过该行`);
+                            continue;
                         }
 
-                        // 步骤4：转换为百分比（保留2位小数）
+                        // 强制转换为百分比（保留2位小数）
                         const CaPercent = (Ca / cationTotal * 100).toFixed(2) * 1;
                         const MgPercent = (Mg / cationTotal * 100).toFixed(2) * 1;
                         const NaKPercent = (NaK / cationTotal * 100).toFixed(2) * 1;
@@ -603,57 +594,50 @@
                         const SO4Percent = (SO4 / anionTotal * 100).toFixed(2) * 1;
                         const ClPercent = (Cl / anionTotal * 100).toFixed(2) * 1;
 
-                        // 步骤5：添加到导入列表
-                        importList.push({ 
-                            id, 
-                            Ca: CaPercent, 
-                            Mg: MgPercent, 
-                            NaK: NaKPercent, 
-                            HCO3CO3: HCO3CO3Percent, 
-                            SO4: SO4Percent, 
-                            Cl: ClPercent 
+                        importList.push({
+                            id,
+                            Ca: CaPercent,
+                            Mg: MgPercent,
+                            NaK: NaKPercent,
+                            HCO3CO3: HCO3CO3Percent,
+                            SO4: SO4Percent,
+                            Cl: ClPercent
                         });
-                    });
+                    }
 
-                    // 显示导入结果
+                    // 显示结果
                     const importTitle = document.getElementById('importTitle');
                     const importMsg = document.getElementById('importMsg');
                     const importErrorList = document.getElementById('importErrorList');
-                    
+
                     if (importList.length > 0) {
-                        // 询问是否覆盖原有数据
-                        const isCover = confirm(`成功解析${importList.length}条有效数据（已自动转换为百分比），是否覆盖原有数据？（取消则追加）`);
+                        const isCover = confirm(`成功解析${importList.length}条有效数据（原始含量→百分比转换完成），是否覆盖原有数据？（取消则追加）`);
                         if (isCover) {
                             piperData = importList;
-                            // 重新排序ID
                             piperData.forEach((item, idx) => { item.id = idx + 1; });
                             importTitle.innerText = 'Excel导入成功';
-                            importMsg.innerText = `已覆盖原有数据，共导入${importList.length}条有效数据（原始含量→百分比转换完成）`;
+                            importMsg.innerText = `已覆盖原有数据，共导入${importList.length}条有效数据`;
                         } else {
-                            // 追加数据，重新生成ID
                             const maxId = piperData.length > 0 ? Math.max(...piperData.map(item => item.id)) : 0;
                             importList.forEach((item, idx) => {
                                 item.id = maxId + idx + 1;
                                 piperData.push(item);
                             });
                             importTitle.innerText = 'Excel导入成功';
-                            importMsg.innerText = `已追加${importList.length}条有效数据（原始含量→百分比转换完成），当前总数据量：${piperData.length}条`;
+                            importMsg.innerText = `已追加${importList.length}条有效数据，当前总数据量：${piperData.length}条`;
                         }
-                        // 更新图表和表格
                         updateChartData();
                         renderTable();
                     } else {
                         importTitle.innerText = 'Excel导入失败';
-                        importMsg.innerText = '未解析到有效数据，请检查Excel格式！';
+                        importMsg.innerText = '未解析到有效数据，请检查Excel数据！';
                     }
 
-                    // 显示错误信息
                     importErrorList.innerHTML = '';
                     if (errorList.length > 0) {
                         importErrorList.innerHTML = errorList.map(err => `<li>${err}</li>`).join('');
                     }
 
-                    // 打开导入结果弹窗
                     document.getElementById('importModal').style.display = 'block';
                 } catch (err) {
                     console.error('Excel解析失败：', err);
@@ -666,23 +650,16 @@
             reader.readAsArrayBuffer(file);
         }
 
-        // 关闭导入结果弹窗
         function closeImportModal() {
             document.getElementById('importModal').style.display = 'none';
-            // 清空文件输入框
             document.getElementById('excelFile').value = '';
         }
 
-        // 9. 按钮绑定
-        document.getElementById('addRegion').addEventListener('click', () => {
-            openModal(); // 打开新增弹窗
-        });
-
-        // Excel导入按钮绑定
+        // 按钮绑定（不变）
+        document.getElementById('addRegion').addEventListener('click', () => openModal());
         document.getElementById('excelFile').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (file) {
-                // 校验文件格式
                 const ext = file.name.split('.').pop().toLowerCase();
                 if (ext !== 'xlsx' && ext !== 'xls') {
                     alert('请上传.xlsx或.xls格式的Excel文件！');
@@ -692,25 +669,20 @@
                 importExcel(file);
             }
         });
-
         document.getElementById('addRegionLabel').addEventListener('click', () => {
             alert('【添加分区标注】功能：可扩展实现菱形分区（如5/6/7/8/9区）的颜色标注，如需实现可补充annotation配置');
         });
-
         document.getElementById('delRegionLabel').addEventListener('click', () => {
             alert('【删除分区标注】功能：可扩展删除已添加的分区标注，如需实现可清空ECharts的annotation配置');
         });
-
         document.getElementById('exportChart').addEventListener('click', () => {
             const img = myChart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#fff' });
             const a = document.createElement('a');
             a.href = img; a.download = 'Piper三线图.png'; a.click();
         });
-
         document.getElementById('exportDGV').addEventListener('click', () => {
             alert('【输出到DGV】功能：可扩展导出数据到DataGridView（需结合后端语言如C#实现）');
         });
-
         document.getElementById('exportExcel').addEventListener('click', () => {
             const ws = XLSX.utils.json_to_sheet(piperData);
             const wb = XLSX.utils.book_new();
@@ -718,7 +690,6 @@
             XLSX.writeFile(wb, 'Piper三线图数据（百分比）.xlsx');
         });
 
-        // 10. 页面初始化
         window.onload = function() {
             initChart();
             renderTable();
