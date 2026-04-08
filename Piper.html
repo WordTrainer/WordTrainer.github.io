@@ -53,16 +53,16 @@
     </div>
 
 <script>
-// 常量定义（离子摩尔质量/当量）
-const CONST = {
-    Ca: 20.04,   // Ca²+ 当量质量 = 40.08/2
-    Mg: 12.155,  // Mg²+ 当量质量 = 24.31/2
-    K: 39.1,     // K+ 当量质量
-    Na: 22.99,   // Na+ 当量质量
-    HCO3: 61.02, // HCO3⁻ 当量质量
-    CO3: 30.005, // CO3²⁻ 当量质量 = 60.01/2
-    SO4: 48.03,  // SO4²⁻ 当量质量 = 96.06/2
-    Cl: 35.45    // Cl⁻ 当量质量
+// 常量定义（离子当量质量：摩尔质量/电价）
+const EQUIVALENT_MASS = {
+    Ca2+: 20.04,   // Ca²+：40.08/2
+    Mg2+: 12.155,  // Mg²+：24.31/2
+    K+: 39.1,      // K+：39.1/1
+    Na+: 22.99,    // Na+：22.99/1
+    HCO3-: 61.02,  // HCO3⁻：61.02/1
+    CO32-: 30.005, // CO3²⁻：60.01/2
+    SO42-: 48.03,  // SO4²⁻：96.06/2
+    Cl-: 35.45     // Cl⁻：35.45/1
 };
 
 // 全局变量
@@ -345,7 +345,7 @@ function hideDivisions() {
     if(allPoints.length > 0) renderAllPoints();
 }
 
-// ===================== Excel导入与数据处理 =====================
+// ===================== Excel导入与数据处理（核心修改） =====================
 function selectExcel() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -369,7 +369,7 @@ function selectExcel() {
 }
 
 /**
- * 处理Excel数据并计算Piper图坐标
+ * 处理Excel数据（适配带离子符号的表头，从含量计算当量百分比）
  * @param {Array} data Excel数据（二维数组）
  */
 function processExcelData(data) {
@@ -378,75 +378,130 @@ function processExcelData(data) {
     document.getElementById('resultText').innerHTML = '';
     document.querySelector('#resultTable tbody').innerHTML = '';
 
-    // 校验表头（第一行应为：序号,Ca%,Mg%,Na+K%,HCO3+CO3%,SO4%,Cl%）
+    // 步骤1：解析表头（兼容带离子符号的表头：序号、Ca²+、Mg²+、K+、Na+、HCO3⁻、CO3²⁻、SO4²⁻、Cl⁻）
     const header = data[0] || [];
-    const requiredHeaders = ['序号', 'Ca%', 'Mg%', 'Na+K%', 'HCO3+CO3%', 'SO4%', 'Cl%'];
-    if(!header.some(h => h && requiredHeaders.includes(h.toString().trim()))) {
-        alert('Excel表头格式错误！请确保表头包含：序号,Ca%,Mg%,Na+K%,HCO3+CO3%,SO4%,Cl%');
+    // 表头映射（兼容不同写法：如Ca²+、Ca2+、钙离子等）
+    const headerMap = {
+        '序号': -1,
+        'Ca2+': -1, 'Ca²+': -1, '钙离子': -1,
+        'Mg2+': -1, 'Mg²+': -1, '镁离子': -1,
+        'K+': -1, '钾离子': -1,
+        'Na+': -1, '钠离子': -1,
+        'HCO3-': -1, 'HCO3⁻': -1, '碳酸氢根': -1,
+        'CO32-': -1, 'CO3²⁻': -1, '碳酸根': -1,
+        'SO42-': -1, 'SO4²⁻': -1, '硫酸根': -1,
+        'Cl-': -1, 'Cl⁻': -1, '氯离子': -1
+    };
+
+    // 匹配表头列索引
+    header.forEach((h, idx) => {
+        if(!h) return;
+        const hTrim = h.toString().trim();
+        for(const key of Object.keys(headerMap)) {
+            if(hTrim.includes(key) || key.includes(hTrim)) {
+                headerMap[key] = idx;
+                break;
+            }
+        }
+    });
+
+    // 校验必填列是否存在
+    const requiredCols = [
+        {key: '序号', name: '序号'},
+        {key: 'Ca2+', name: 'Ca²+'},
+        {key: 'Mg2+', name: 'Mg²+'},
+        {key: 'K+', name: 'K+'},
+        {key: 'Na+', name: 'Na+'},
+        {key: 'HCO3-', name: 'HCO3⁻'},
+        {key: 'CO32-', name: 'CO3²⁻'},
+        {key: 'SO42-', name: 'SO4²⁻'},
+        {key: 'Cl-', name: 'Cl⁻'}
+    ];
+    const missingCols = requiredCols.filter(item => headerMap[item.key] === -1).map(item => item.name);
+    if(missingCols.length > 0) {
+        alert(`Excel表头格式错误！请确保包含以下列：\n${missingCols.join('、')}`);
         return;
     }
 
-    // 处理数据行（从第二行开始）
+    // 步骤2：处理每一行数据
     for(let i=1; i<data.length; i++) {
         const row = data[i];
-        if(!row || row.length < 7) continue; // 跳过空行/不完整行
+        if(!row || row.length < 9) continue; // 跳过空行/不完整行
 
-        // 提取数据（兼容不同列顺序，优先按表头匹配）
-        const rowObj = {};
-        header.forEach((h, idx) => {
-            if(h && row[idx] !== undefined) {
-                rowObj[h.toString().trim()] = parseFloat(row[idx]) || 0;
-            }
-        });
+        // 提取原始含量数据（mg/L）
+        const NO = row[headerMap['序号']] || i;
+        const caContent = parseFloat(row[headerMap['Ca2+']]) || 0;
+        const mgContent = parseFloat(row[headerMap['Mg2+']]) || 0;
+        const kContent = parseFloat(row[headerMap['K+']]) || 0;
+        const naContent = parseFloat(row[headerMap['Na+']]) || 0;
+        const hco3Content = parseFloat(row[headerMap['HCO3-']]) || 0;
+        const co3Content = parseFloat(row[headerMap['CO32-']]) || 0;
+        const so4Content = parseFloat(row[headerMap['SO42-']]) || 0;
+        const clContent = parseFloat(row[headerMap['Cl-']]) || 0;
 
-        // 基础数据（兼容直接按列索引）
-        const NO = rowObj['序号'] || row[0] || i;
-        const ca = rowObj['Ca%'] || row[1] || 0;
-        const mg = rowObj['Mg%'] || row[2] || 0;
-        const nak = rowObj['Na+K%'] || row[3] || 0;
-        const hc = rowObj['HCO3+CO3%'] || row[4] || 0;
-        const so = rowObj['SO4%'] || row[5] || 0;
-        const cl = rowObj['Cl%'] || row[6] || 0;
+        // 步骤3：计算当量浓度（当量浓度 = 含量 / 当量质量）
+        const caEq = caContent / EQUIVALENT_MASS.Ca2+;
+        const mgEq = mgContent / EQUIVALENT_MASS.Mg2+;
+        const kEq = kContent / EQUIVALENT_MASS.K+;
+        const naEq = naContent / EQUIVALENT_MASS.Na+;
+        const hco3Eq = hco3Content / EQUIVALENT_MASS.HCO3-;
+        const co3Eq = co3Content / EQUIVALENT_MASS.CO32-;
+        const so4Eq = so4Content / EQUIVALENT_MASS.SO42-;
+        const clEq = clContent / EQUIVALENT_MASS.Cl-;
 
-        // 校验数据有效性
-        const catSum = ca + mg + nak;
-        const aniSum = hc + so + cl;
-        if(catSum === 0 || aniSum === 0) {
-            console.warn(`数据点${NO}：阴阳离子百分比和为0，跳过`);
+        // 步骤4：计算当量百分比
+        // 阳离子总当量
+        const catTotalEq = caEq + mgEq + kEq + naEq;
+        // 阴离子总当量
+        const aniTotalEq = hco3Eq + co3Eq + so4Eq + clEq;
+
+        // 避免除以0
+        if(catTotalEq < 0.0001 || aniTotalEq < 0.0001) {
+            console.warn(`数据点${NO}：阴阳离子总当量为0，跳过`);
             continue;
         }
 
-        // ===================== 核心：计算Piper图坐标 =====================
+        // 阳离子百分比
+        const caPer = (caEq / catTotalEq * 100).toFixed(1);
+        const mgPer = (mgEq / catTotalEq * 100).toFixed(1);
+        const nakPer = ((kEq + naEq) / catTotalEq * 100).toFixed(1);
+        // 阴离子百分比
+        const hcPer = ((hco3Eq + co3Eq) / aniTotalEq * 100).toFixed(1);
+        const soPer = (so4Eq / aniTotalEq * 100).toFixed(1);
+        const clPer = (clEq / aniTotalEq * 100).toFixed(1);
+
+        // 步骤5：计算Piper图坐标
         // 1. 阳离子三角坐标（Ca-Mg-Na+K）
-        const cationX = (nak / catSum);          // Na+K占比（X轴）
-        const cationY = (ca / catSum) * sqrt3;   // Ca占比（Y轴，等边三角形高）
+        const cationX = (parseFloat(nakPer) / 100);          // Na+K占比（X轴）
+        const cationY = (parseFloat(caPer) / 100) * sqrt3;   // Ca占比（Y轴，等边三角形高）
         
         // 2. 阴离子三角坐标（HCO3+CO3-SO4-Cl）
-        const anionX = 1.5 + (cl / aniSum);      // Cl占比（X轴，偏移1.5）
-        const anionY = (hc / aniSum) * sqrt3;    // HCO3+CO3占比（Y轴）
+        const anionX = 1.5 + (parseFloat(clPer) / 100);      // Cl占比（X轴，偏移1.5）
+        const anionY = (parseFloat(hcPer) / 100) * sqrt3;    // HCO3+CO3占比（Y轴）
         
         // 3. 钻石区坐标（映射规则：连接阴阳离子三角的投影）
         const diamondX = 1.0 + (cationX * 0.5) + ((anionX - 1.5) * 0.5);
         const diamondY = sqrt3/2 + (cationY * 0.5) + (anionY * 0.5);
 
-        // 4. 判定区域和水化学类型
+        // 步骤6：判定区域和水化学类型
         const zone = getZone(diamondX, diamondY);
         const waterType = getWaterType(diamondX, diamondY);
 
         // 存储数据点
         const point = {
             NO,
-            caPer: ca.toFixed(1),
-            mgPer: mg.toFixed(1),
-            nakPer: nak.toFixed(1),
-            hcPer: hc.toFixed(1),
-            soPer: so.toFixed(1),
-            clPer: cl.toFixed(1),
+            caPer, mgPer, nakPer,
+            hcPer, soPer, clPer,
             cationX, cationY,  // 阳离子三角坐标
             anionX, anionY,    // 阴离子三角坐标
             diamondX, diamondY,// 钻石区坐标
             zone,
-            type: waterType
+            type: waterType,
+            // 保留原始含量（用于hover提示）
+            rawData: {
+                ca: caContent, mg: mgContent, k: kContent, na: naContent,
+                hco3: hco3Content, co3: co3Content, so4: so4Content, cl: clContent
+            }
         };
         allPoints.push(point);
 
@@ -477,7 +532,11 @@ function renderAllPoints() {
         marker: { color: '#3498db', size: 8, symbol: 'circle', line: { width: 1, color: '#fff' } },
         textfont: { size: 10, color: '#2c3e50' },
         hoverinfo: 'text',
-        hovertext: allPoints.map(p => `数据点${p.NO}<br>Ca:${p.caPer}%<br>Mg:${p.mgPer}%<br>Na+K:${p.nakPer}%`)
+        hovertext: allPoints.map(p => 
+            `数据点${p.NO}<br>
+            原始含量(mg/L)：Ca=${p.rawData.ca} | Mg=${p.rawData.mg} | K=${p.rawData.k} | Na=${p.rawData.na}<br>
+            当量百分比：Ca=${p.caPer}% | Mg=${p.mgPer}% | Na+K=${p.nakPer}%`
+        )
     });
 
     // 阴离子三角数据点
@@ -494,7 +553,11 @@ function renderAllPoints() {
         marker: { color: '#e74c3c', size: 8, symbol: 'circle', line: { width: 1, color: '#fff' } },
         textfont: { size: 10, color: '#2c3e50' },
         hoverinfo: 'text',
-        hovertext: allPoints.map(p => `数据点${p.NO}<br>HCO3+CO3:${p.hcPer}%<br>SO4:${p.soPer}%<br>Cl:${p.clPer}%`)
+        hovertext: allPoints.map(p => 
+            `数据点${p.NO}<br>
+            原始含量(mg/L)：HCO3=${p.rawData.hco3} | CO3=${p.rawData.co3} | SO4=${p.rawData.so4} | Cl=${p.rawData.cl}<br>
+            当量百分比：HCO3+CO3=${p.hcPer}% | SO4=${p.soPer}% | Cl=${p.clPer}%`
+        )
     });
 
     // 钻石区数据点（核心）
@@ -512,9 +575,11 @@ function renderAllPoints() {
         textfont: { size: 11, color: '#e67e22' },
         hoverinfo: 'text',
         hovertext: allPoints.map(p => 
-            `数据点${p.NO}<br>类型:${p.type}<br>区域:${p.zone}区<br>
-            Ca:${p.caPer}% | Mg:${p.mgPer}% | Na+K:${p.nakPer}%<br>
-            HCO3+CO3:${p.hcPer}% | SO4:${p.soPer}% | Cl:${p.clPer}%`
+            `数据点${p.NO}<br>
+            水化学类型:${p.type}<br>
+            所属区域:${p.zone}区<br>
+            阳离子当量%：Ca=${p.caPer}% | Mg=${p.mgPer}% | Na+K=${p.nakPer}%<br>
+            阴离子当量%：HCO3+CO3=${p.hcPer}% | SO4=${p.soPer}% | Cl=${p.clPer}%`
         )
     });
 
@@ -604,15 +669,23 @@ function exportExcel() {
         return;
     }
 
-    // 整理导出数据
+    // 整理导出数据（包含原始含量+百分比+类型）
     const exportData = allPoints.map(p => ({
         '序号': p.NO,
-        'Ca%': p.caPer,
-        'Mg%': p.mgPer,
-        'Na+K%': p.nakPer,
-        'HCO3+CO3%': p.hcPer,
-        'SO4%': p.soPer,
-        'Cl%': p.clPer,
+        'Ca²+含量(mg/L)': p.rawData.ca,
+        'Mg²+含量(mg/L)': p.rawData.mg,
+        'K+含量(mg/L)': p.rawData.k,
+        'Na+含量(mg/L)': p.rawData.na,
+        'HCO3⁻含量(mg/L)': p.rawData.hco3,
+        'CO3²⁻含量(mg/L)': p.rawData.co3,
+        'SO4²⁻含量(mg/L)': p.rawData.so4,
+        'Cl⁻含量(mg/L)': p.rawData.cl,
+        'Ca当量%': p.caPer + '%',
+        'Mg当量%': p.mgPer + '%',
+        'Na+K当量%': p.nakPer + '%',
+        'HCO3+CO3当量%': p.hcPer + '%',
+        'SO4当量%': p.soPer + '%',
+        'Cl当量%': p.clPer + '%',
         '所属区域': p.zone + '区',
         '水化学类型': p.type
     }));
