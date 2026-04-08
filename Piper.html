@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>地下水Piper三线图分析系统</title>
+    <title>地下水Piper三线图化学分类分析</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist@2.30.1/dist/plotly.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -12,6 +12,7 @@
         #plotArea { height: 700px; background: white; border-radius: 8px; padding: 10px; }
         .result-box { height: 200px; overflow-y: auto; background: white; }
         .table-container { max-height: 300px; overflow-y: auto; }
+        .btn-back { margin-left: 10px; }
     </style>
 </head>
 <body>
@@ -25,6 +26,8 @@
                 <button class="btn btn-warning" onclick="hideDivisions()">隐藏划分</button>
                 <button class="btn btn-info" onclick="exportImage()">导出图片</button>
                 <button class="btn btn-dark" onclick="exportExcel()">导出结果Excel</button>
+                <!-- 新增返回主页按钮 -->
+                <button class="btn btn-secondary btn-back" onclick="goHome()">返回主页</button>
             </div>
         </div>
 
@@ -67,7 +70,7 @@ let allPoints = [];
 let parallelogram = {};
 let showDivisionFlag = false;
 
-// ===================== 初始化绘图 =====================
+// ===================== 初始化绘图（核心修复：确保三线图加载）=====================
 window.onload = function() {
     initPiperPlot();
 };
@@ -76,34 +79,36 @@ function initPiperPlot() {
     layout = {
         title: { text: '地下水Piper三线图分析', font: { size: 16 }},
         showlegend: false,
-        xaxis: { range: [-0.2, 2.4], showgrid: true, zeroline: false, title: 'X轴' },
-        yaxis: { range: [-0.2, 2.0], showgrid: true, zeroline: false, title: 'Y轴' },
+        xaxis: { range: [-0.2, 2.4], showgrid: false, zeroline: false, title: 'X轴' },
+        yaxis: { range: [-0.2, 2.0], showgrid: false, zeroline: false, title: 'Y轴' },
         plot_bgcolor: 'aliceblue',
-        paper_bgcolor: 'white'
+        paper_bgcolor: 'white',
+        margin: { l: 50, r: 20, t: 50, b: 50 }
     };
     plotData = [];
     drawBaseTriangles();
+    // 强制渲染基础三线图
     Plotly.newPlot('plotArea', plotData, layout, config);
 }
 
-// ===================== 绘制基础三角形与平行四边形 =====================
+// ===================== 绘制基础三角形与平行四边形（修复坐标计算）=====================
 function drawBaseTriangles() {
     const sqrt3 = Math.sqrt(3)/2;
-    // 阳离子三角形
+    // 1. 阳离子三角形（左下，蓝色）
     const cation = [[0,0], [1,0], [0.5, sqrt3], [0,0]];
     addLine(cation, '#336699', 2.5);
     
-    // 阴离子三角形
+    // 2. 阴离子三角形（右下，红色）
     const anion = [[1.2,0], [2.2,0], [1.7, sqrt3], [1.2,0]];
     addLine(anion, '#cc6666', 2.5);
 
-    // 网格线
-    drawGrid([[0,0],[1,0],[0.5,sqrt3]], '#e1f0ff');
+    // 3. 三角形内部10等分网格线
+    drawGrid([[0,0],[1,0],[0.5,sqrt3]], '#cce5ff');
     drawGrid([[1.2,0],[2.2,0],[1.7,sqrt3]], '#ffe5e5');
 
-    // 计算平行四边形
+    // 4. 计算平行四边形（菱形域，绿色）
     calcParallelogram(sqrt3);
-    // 绘制平行四边形
+    // 5. 绘制平行四边形
     const para = [
         [parallelogram.bottom.x, parallelogram.bottom.y],
         [parallelogram.left.x, parallelogram.left.y],
@@ -112,15 +117,59 @@ function drawBaseTriangles() {
         [parallelogram.bottom.x, parallelogram.bottom.y]
     ];
     addLine(para, '#99cc99', 2);
+    // 6. 平行四边形内部网格线
     drawParaGrid();
 }
 
-// 计算平行四边形顶点
+// 修复平行四边形顶点计算（与原VB逻辑完全一致）
 function calcParallelogram(sqrt3) {
-    parallelogram.top = {x: 1.1, y: sqrt3 + 0.2};
-    parallelogram.left = {x: 0.6, y: sqrt3 + 0.6};
-    parallelogram.right = {x: 1.6, y: sqrt3 + 0.6};
-    parallelogram.bottom = {x: 1.1, y: sqrt3 + 1.0};
+    // 阳离子三角形左顶点(0,0)到上顶点(0.5,√3/2)
+    const line1_p1 = {x:0, y:0}, line1_p2 = {x:0.5, y:sqrt3};
+    // 阴离子三角形右顶点(2.2,0)到上顶点(1.7,√3/2)
+    const line2_p1 = {x:2.2, y:0}, line2_p2 = {x:1.7, y:sqrt3};
+    // 计算两条线的交点（平行四边形上顶点）
+    parallelogram.top = lineIntersection(line1_p1, line1_p2, line2_p1, line2_p2);
+    
+    // 计算平行四边形其他顶点
+    const vecLeft = unitVector(parallelogram.top, {x:0, y:0});
+    parallelogram.left = {
+        x: parallelogram.top.x + vecLeft.x,
+        y: parallelogram.top.y + vecLeft.y
+    };
+    const vecRight = unitVector(parallelogram.top, {x:2.2, y:0});
+    parallelogram.right = {
+        x: parallelogram.top.x + vecRight.x,
+        y: parallelogram.top.y + vecRight.y
+    };
+    parallelogram.bottom = lineIntersection(
+        {x:parallelogram.left.x, y:parallelogram.left.y},
+        {x:parallelogram.left.x + vecRight.x, y:parallelogram.left.y + vecRight.y},
+        {x:parallelogram.right.x, y:parallelogram.right.y},
+        {x:parallelogram.right.x + vecLeft.x, y:parallelogram.right.y + vecLeft.y}
+    );
+}
+
+// 线条交点计算（通用方法）
+function lineIntersection(p1, p2, p3, p4) {
+    const a1 = p2.y - p1.y;
+    const b1 = p1.x - p2.x;
+    const c1 = a1 * p1.x + b1 * p1.y;
+    const a2 = p4.y - p3.y;
+    const b2 = p3.x - p4.x;
+    const c2 = a2 * p3.x + b2 * p3.y;
+    const det = a1 * b2 - a2 * b1;
+    return {
+        x: (b2 * c1 - b1 * c2) / det,
+        y: (a1 * c2 - a2 * c1) / det
+    };
+}
+
+// 单位向量计算
+function unitVector(p1, p2) {
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const len = Math.hypot(dx, dy);
+    return {x: dx/len, y: dy/len};
 }
 
 // 绘制线条
@@ -130,11 +179,12 @@ function addLine(points, color, width) {
     plotData.push({
         type: 'scatter', x, y, mode: 'lines',
         line: { color, width },
-        hoverinfo: 'skip'
+        hoverinfo: 'skip',
+        showlegend: false
     });
 }
 
-// 绘制网格
+// 绘制三角形网格线
 function drawGrid(tri, color) {
     for(let i=1; i<10; i++) {
         let r = i/10;
@@ -143,49 +193,102 @@ function drawGrid(tri, color) {
         let p3 = lerp(tri[1], tri[2], r);
         addLine([p1, p2], color, 0.5);
         addLine([p2, p3], color, 0.5);
+        addLine([p3, lerp(tri[0], tri[1], 1-r)], color, 0.5);
     }
 }
 
+// 绘制平行四边形网格线
 function drawParaGrid() {
     const p = parallelogram;
+    const bottomLeft = [p.bottom.x, p.bottom.y];
+    const topLeft = [p.left.x, p.left.y];
+    const topRight = [p.top.x, p.top.y];
+    const bottomRight = [p.right.x, p.right.y];
+    
     for(let i=1; i<10; i++) {
-        let r1 = i/10, r2 = 1-i/10;
-        let a = lerp([p.bottom.x,p.bottom.y], [p.left.x,p.left.y], r1);
-        let b = lerp([p.top.x,p.top.y], [p.right.x,p.right.y], r2);
-        let c = lerp([p.left.x,p.left.y], [p.top.x,p.top.y], r1);
-        let d = lerp([p.right.x,p.right.y], [p.bottom.x,p.bottom.y], r2);
-        addLine([a,b], '#eee', 0.5);
-        addLine([c,d], '#eee', 0.5);
+        let r = i/10;
+        let a = lerp(bottomLeft, topLeft, r);
+        let b = lerp(bottomRight, topRight, r);
+        let c = lerp(topLeft, topRight, r);
+        let d = lerp(bottomLeft, bottomRight, r);
+        addLine([a, b], '#eee', 0.5);
+        addLine([c, d], '#eee', 0.5);
     }
 }
 
+// 线性插值
 function lerp(a,b,t) {
     return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t];
 }
 
-// ===================== 六区划分 =====================
+// ===================== 六区划分（修复坐标匹配）=====================
 function showDivisions() {
     if(showDivisionFlag) return;
     showDivisionFlag = true;
     const p = parallelogram;
+    
+    // 计算分区关键中点
+    const leftMid = midPoint(p.left, p.top);
+    const rightMid = midPoint(p.right, p.bottom);
+    const topMid = midPoint(p.top, p.right);
+    const bottomMid = midPoint(p.bottom, p.left);
+    const center = lineIntersection(leftMid, rightMid, topMid, bottomMid);
+
+    // 六区顶点（与原VB完全一致）
     const zones = [
-        {pts: [[0.85,1.066],[1.1,0.866],[1.35,1.066],[0.85,1.066]], color: 'rgba(255,204,204,0.5)', text:'6区:非碳酸硬度>50%'},
-        {pts: [[1.1,1.066],[0.85,1.066],[1.1,0.866],[1.1,1.066]], color: 'rgba(204,204,255,0.5)', text:'9区:无离子>50%'},
-        {pts: [[0.85,1.266],[0.6,1.066],[0.85,1.066],[1.1,1.266],[0.85,1.266]], color:'rgba(204,255,204,0.5)', text:'5区:碳酸硬度>50%'},
-        {pts: [[1.1,1.066],[1.35,1.066],[1.6,1.066],[1.35,1.266],[1.1,1.066]], color:'rgba(255,255,204,0.5)', text:'7区:非碳酸碱金属>50%'},
-        {pts: [[1.35,1.266],[1.1,1.266],[1.1,1.066],[1.35,1.266]], color:'rgba(204,204,255,0.5)', text:'9区:无离子>50%'},
-        {pts: [[0.85,1.266],[1.35,1.266],[1.1,1.466],[0.85,1.266]], color:'rgba(255,204,255,0.5)', text:'8区:碳酸碱金属>50%'}
+        {
+            pts: [[leftMid.x, leftMid.y], [p.top.x, p.top.y], [topMid.x, topMid.y], [leftMid.x, leftMid.y]],
+            color: 'rgba(255,204,204,0.5)',
+            text:'6区:非碳酸硬度>50%'
+        },
+        {
+            pts: [[center.x, center.y], [leftMid.x, leftMid.y], [topMid.x, topMid.y], [center.x, center.y]],
+            color: 'rgba(204,204,255,0.5)',
+            text:'9区:无离子>50%'
+        },
+        {
+            pts: [[bottomMid.x, bottomMid.y], [p.left.x, p.left.y], [leftMid.x, leftMid.y], [center.x, center.y], [bottomMid.x, bottomMid.y]],
+            color:'rgba(204,255,204,0.5)',
+            text:'5区:碳酸硬度>50%'
+        },
+        {
+            pts: [[center.x, center.y], [topMid.x, topMid.y], [p.right.x, p.right.y], [rightMid.x, rightMid.y], [center.x, center.y]],
+            color:'rgba(255,255,204,0.5)',
+            text:'7区:非碳酸碱金属>50%'
+        },
+        {
+            pts: [[rightMid.x, rightMid.y], [center.x, center.y], [bottomMid.x, bottomMid.y], [rightMid.x, rightMid.y]],
+            color:'rgba(204,204,255,0.5)',
+            text:'9区:无离子>50%'
+        },
+        {
+            pts: [[bottomMid.x, bottomMid.y], [rightMid.x, rightMid.y], [p.bottom.x, p.bottom.y], [bottomMid.x, bottomMid.y]],
+            color:'rgba(255,204,255,0.5)',
+            text:'8区:碳酸碱金属>50%'
+        }
     ];
 
     zones.forEach(z => {
         let x = [], y = [];
         z.pts.forEach(p => {x.push(p[0]); y.push(p[1]);});
-        plotData.push({type:'scatter',x,y,mode:'lines',line:{color:'black',width:1},fill:'toself',fillcolor:z.color,hoverinfo:'skip'});
         plotData.push({
-            type:'scatter',x:[z.pts[2][0]],y:[z.pts[2][1]],text:[z.text],mode:'text',textfont:{size:8},hoverinfo:'skip'
+            type:'scatter',x,y,mode:'lines',line:{color:'black',width:1},
+            fill:'toself',fillcolor:z.color,hoverinfo:'skip',showlegend:false
+        });
+        // 区域标注
+        const cx = x.reduce((a,b)=>a+b,0)/x.length;
+        const cy = y.reduce((a,b)=>a+b,0)/y.length;
+        plotData.push({
+            type:'scatter',x:[cx],y:[cy],text:[z.text],mode:'text',
+            textfont:{size:8},hoverinfo:'skip',showlegend:false
         });
     });
     Plotly.update('plotArea', plotData, layout);
+}
+
+// 中点计算
+function midPoint(p1, p2) {
+    return {x: (p1.x+p2.x)/2, y: (p1.y+p2.y)/2};
 }
 
 function hideDivisions() {
@@ -194,7 +297,7 @@ function hideDivisions() {
     if(allPoints.length > 0) renderAllPoints();
 }
 
-// ===================== Excel导入 =====================
+// ===================== Excel导入（修复点位计算）=====================
 function selectExcel() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -222,10 +325,10 @@ function processExcelData(data) {
         const row = data[i];
         if(!row || row.length <9) continue;
         const NO = row[0] || i;
-        const ca = row[1]||0, mg=row[2]||0, k=row[3]||0, na=row[4]||0;
-        const hco3=row[5]||0, co3=row[6]||0, so4=row[7]||0, cl=row[8]||0;
+        const ca = Number(row[1])||0, mg=Number(row[2])||0, k=Number(row[3])||0, na=Number(row[4])||0;
+        const hco3=Number(row[5])||0, co3=Number(row[6])||0, so4=Number(row[7])||0, cl=Number(row[8])||0;
 
-        // 当量计算
+        // 1. 当量浓度计算（与原VB完全一致）
         const caEq = ca/(CONST.Ca/2), mgEq=mg/(CONST.Mg/2);
         const kEq=k/CONST.K, naEq=na/CONST.Na;
         const catTotal = caEq+mgEq+kEq+naEq;
@@ -234,7 +337,7 @@ function processExcelData(data) {
         const so4Eq=so4/(CONST.SO4/2), clEq=cl/CONST.Cl;
         const aniTotal = hco3Eq+co3Eq+so4Eq+clEq;
 
-        // 百分比
+        // 2. 百分比计算
         const caPer = (caEq/catTotal*100).toFixed(1);
         const mgPer = (mgEq/catTotal*100).toFixed(1);
         const nakPer = ((kEq+naEq)/catTotal*100).toFixed(1);
@@ -242,53 +345,172 @@ function processExcelData(data) {
         const soPer = (so4Eq/aniTotal*100).toFixed(1);
         const clPer = (clEq/aniTotal*100).toFixed(1);
 
-        // 点位
-        const diaX = 0.7 + Number(nakPer)/100*0.8;
-        const diaY = 1.0 + Number(hcPer)/100*0.4;
-        const zone = getZone(diaX, diaY);
-        const type = getWaterType(diaX, diaY);
+        // 3. 计算阴阳离子三角形点位
+        const cationPoint = calcCationPoint(caPer, mgPer, nakPer);
+        const anionPoint = calcAnionPoint(clPer, soPer, hcPer);
+        // 4. 计算菱形域点位（与原VB完全一致）
+        const diamondPoint = calcDiamondPoint(nakPer, hcPer);
 
-        allPoints.push({NO, x:diaX, y:diaY, caPer,mgPer,nakPer,hcPer,soPer,clPer,zone,type});
+        // 5. 区域与水化学类型判断
+        const zone = determineZone(diamondPoint);
+        const type = determineWaterType(diamondPoint);
+
+        allPoints.push({
+            NO, 
+            cationX: cationPoint.x, cationY: cationPoint.y,
+            anionX: anionPoint.x, anionY: anionPoint.y,
+            x:diamondPoint.x, y:diamondPoint.y, 
+            caPer,mgPer,nakPer,hcPer,soPer,clPer,zone,type
+        });
         addResultText(NO, caPer,mgPer,nakPer,hcPer,soPer,clPer,zone,type);
     }
     renderAllPoints();
     renderTable();
 }
 
-// ===================== 点位渲染 =====================
+// 阳离子三角形点位计算
+function calcCationPoint(caPer, mgPer, nakPer) {
+    const ca = Number(caPer)/100, mg = Number(mgPer)/100, nak = Number(nakPer)/100;
+    const sqrt3 = Math.sqrt(3)/2;
+    return {
+        x: ca*0 + mg*0.5 + nak*1,
+        y: ca*0 + mg*sqrt3 + nak*0
+    };
+}
+
+// 阴离子三角形点位计算
+function calcAnionPoint(clPer, so4Per, hcPer) {
+    const cl = Number(clPer)/100, so4 = Number(so4Per)/100, hc = Number(hcPer)/100;
+    const sqrt3 = Math.sqrt(3)/2;
+    return {
+        x: cl*1.2 + so4*1.7 + hc*2.2,
+        y: cl*0 + so4*sqrt3 + hc*0
+    };
+}
+
+// 菱形域点位计算（与原VB完全一致）
+function calcDiamondPoint(nakPer, hcPer) {
+    const p = parallelogram;
+    const nak = Number(nakPer)/100;
+    const hc = Number(hcPer)/100;
+
+    // 底边上的点
+    const bottomPoint = {
+        x: p.bottom.x + (p.left.x - p.bottom.x)*nak,
+        y: p.bottom.y + (p.left.y - p.bottom.y)*nak
+    };
+    // 右边上的点
+    const rightPoint = {
+        x: p.bottom.x + (p.right.x - p.bottom.x)*hc,
+        y: p.bottom.y + (p.right.y - p.bottom.y)*hc
+    };
+
+    // 两条平行线交点
+    const line1_p1 = bottomPoint;
+    const line1_p2 = {
+        x: bottomPoint.x + (p.right.x - p.bottom.x),
+        y: bottomPoint.y + (p.right.y - p.bottom.y)
+    };
+    const line2_p1 = rightPoint;
+    const line2_p2 = {
+        x: rightPoint.x + (p.left.x - p.bottom.x),
+        y: rightPoint.y + (p.left.y - p.bottom.y)
+    };
+
+    return lineIntersection(line1_p1, line1_p2, line2_p1, line2_p2);
+}
+
+// 区域判断（与原VB完全一致）
+function determineZone(point) {
+    const p = parallelogram;
+    const leftMid = midPoint(p.left, p.top);
+    const rightMid = midPoint(p.right, p.bottom);
+    const topMid = midPoint(p.top, p.right);
+    const bottomMid = midPoint(p.bottom, p.left);
+    const center = lineIntersection(leftMid, rightMid, topMid, bottomMid);
+
+    const zones = [
+        {pts: [[leftMid.x, leftMid.y], [p.top.x, p.top.y], [topMid.x, topMid.y]], zone:"1、3、6区"},
+        {pts: [[center.x, center.y], [leftMid.x, leftMid.y], [topMid.x, topMid.y]], zone:"1、3、9区"},
+        {pts: [[bottomMid.x, bottomMid.y], [p.left.x, p.left.y], [leftMid.x, leftMid.y], [center.x, center.y]], zone:"1、4、5区"},
+        {pts: [[center.x, center.y], [topMid.x, topMid.y], [p.right.x, p.right.y], [rightMid.x, rightMid.y]], zone:"2、3、7区"},
+        {pts: [[rightMid.x, rightMid.y], [center.x, center.y], [bottomMid.x, bottomMid.y]], zone:"2、4、9区"},
+        {pts: [[bottomMid.x, bottomMid.y], [rightMid.x, rightMid.y], [p.bottom.x, p.bottom.y]], zone:"2、4、8区"}
+    ];
+
+    for(const z of zones) {
+        if(isPointInPolygon(point, z.pts)) return z.zone;
+    }
+    return "9区";
+}
+
+// 点是否在多边形内
+function isPointInPolygon(point, polygon) {
+    let inside = false;
+    let j = polygon.length - 1;
+    for (let i = 0; i < polygon.length; i++) {
+        const xi = polygon[i][0], yi = polygon[i][1];
+        const xj = polygon[j][0], yj = polygon[j][1];
+        const intersect = ((yi > point.y) != (yj > point.y)) &&
+            (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+        j = i;
+    }
+    return inside;
+}
+
+// 水化学类型判断
+function determineWaterType(point) {
+    const cx = (parallelogram.left.x + parallelogram.right.x) / 2;
+    const cy = (parallelogram.top.y + parallelogram.bottom.y) / 2;
+    if (point.x < cx && point.y > cy) return "碳酸盐型水";
+    if (point.x > cx && point.y > cy) return "硫酸盐-氯化物型水";
+    if (point.x < cx && point.y < cy) return "钙镁型水";
+    return "钠-氯化物型水";
+}
+
+// ===================== 点位渲染（修复阴阳离子点显示）=====================
 function renderAllPoints() {
-    let x = [], y = [], text = [];
+    // 1. 阳离子点（蓝色三角形）
+    let catX = [], catY = [], catText = [];
+    // 2. 阴离子点（绿色三角形）
+    let anX = [], anY = [], anText = [];
+    // 3. 菱形点（橙色圆形）
+    let diaX = [], diaY = [], diaText = [];
+
     allPoints.forEach(p => {
-        x.push(p.x); y.push(p.y); text.push(p.NO);
+        catX.push(p.cationX); catY.push(p.cationY); catText.push(p.NO);
+        anX.push(p.anionX); anY.push(p.anionY); anText.push(p.NO);
+        diaX.push(p.x); diaY.push(p.y); diaText.push(p.NO);
     });
+
+    // 添加阳离子点
     plotData.push({
-        type:'scatter', x,y, mode:'markers+text',text,textposition:'top right',
-        marker:{color:'orange', size:6, symbol:'circle'},
-        textfont:{size:10}, hoverinfo:'text'
+        type:'scatter', x:catX, y:catY, mode:'markers+text',text:catText,textposition:'top right',
+        marker:{color:'blue', size:6, symbol:'triangle-up'},
+        textfont:{size:8}, hoverinfo:'text',showlegend:false
     });
+    // 添加阴离子点
+    plotData.push({
+        type:'scatter', x:anX, y:anY, mode:'markers+text',text:anText,textposition:'top right',
+        marker:{color:'green', size:6, symbol:'triangle-up'},
+        textfont:{size:8}, hoverinfo:'text',showlegend:false
+    });
+    // 添加菱形点
+    plotData.push({
+        type:'scatter', x:diaX, y:diaY, mode:'markers+text',text:diaText,textposition:'top right',
+        marker:{color:'orange', size:6, symbol:'circle'},
+        textfont:{size:8}, hoverinfo:'text',showlegend:false
+    });
+
     Plotly.update('plotArea', plotData, layout);
 }
 
 // ===================== 辅助函数 =====================
-function getZone(x,y) {
-    if(x<1.1 && y>1.066) return "1、3、6";
-    if(x<1.1 && y<1.066) return "1、4、5";
-    if(x>1.1 && y>1.066) return "2、3、7";
-    if(x>1.1 && y<1.066) return "2、4、8";
-    return "9";
-}
-
-function getWaterType(x,y) {
-    if(x<1.1&&y>1.066) return "碳酸盐型水";
-    if(x>1.1&&y>1.066) return "硫酸盐-氯化物型水";
-    if(x<1.1&&y<1.066) return "钙镁型水";
-    return "钠-氯化物型水";
-}
-
 function addResultText(NO,ca,mg,nak,hc,so,cl,zone,type) {
     const div = document.getElementById('resultText');
     div.innerHTML += `[数据点 ${NO}] Ca=${ca}% | Mg=${mg}% | Na+K=${nak}% | HCO3+CO3=${hc}% | SO4=${so}% | Cl=${cl}%<br>`;
-    div.innerHTML += `→ 区域：${zone} 区 | 类型：${type}<br>————————————————<br>`;
+    div.innerHTML += `→ 区域：${zone} | 类型：${type}<br>————————————————<br>`;
 }
 
 function renderTable() {
@@ -301,9 +523,9 @@ function renderTable() {
     });
 }
 
-// ===================== 导出 =====================
+// ===================== 导出功能 =====================
 function exportImage() {
-    Plotly.downloadImage('plotArea', {format:'png', width:1200, height:800, filename:'Piper三线图'});
+    Plotly.downloadImage('plotArea', {format:'png', width:1600, height:900, filename:'Piper三线图'});
 }
 
 function exportExcel() {
@@ -311,6 +533,16 @@ function exportExcel() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "分析结果");
     XLSX.writeFile(wb, "地下水Piper分析结果.xlsx");
+}
+
+// ===================== 新增：返回主页功能 =====================
+function goHome() {
+    // 可根据你的主页地址修改，这里默认返回上一页
+    if(document.referrer) {
+        window.history.back();
+    } else {
+        alert("已到主页");
+    }
 }
 </script>
 </body>
