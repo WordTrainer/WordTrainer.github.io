@@ -15,24 +15,6 @@
     </style>
 </head>
 <body>
-    <!-- 加到 errorBook.html 的 <body> 开头 -->
-<nav class="top-nav" style="
-    background:#2ea44f;
-    padding:15px 20px;
-    display:flex;
-    gap:15px;
-    align-items:center;
-    justify-content:center;
-    flex-wrap:wrap;
-    box-shadow:0 2px 8px rgba(0,0,0,0.1);
-    position:sticky;
-    top:0;
-    z-index:999;
-">
-    <a href="./index.html" class="nav-link">单词训练</a>
-    <a href="./TwoCode.html" class="nav-link">挪车付费</a>
-    <a href="./Piper.html" class="nav-link active">地下水水化学分类</a>
-</nav>
     <div class="container-fluid">
         <h3 class="text-center mb-4 text-primary">地下水Piper三线图化学分类分析</h3>
         
@@ -71,138 +53,289 @@
     </div>
 
 <script>
-// 常量定义（离子摩尔质量）
+// 常量定义（离子摩尔质量/当量）
 const CONST = {
-    Ca: 40.08, Mg: 24.31, K: 39.1, Na: 22.99,
-    HCO3: 61.02, CO3: 60.01, SO4: 96.06, Cl: 35.45
+    Ca: 20.04,   // Ca²+ 当量质量 = 40.08/2
+    Mg: 12.155,  // Mg²+ 当量质量 = 24.31/2
+    K: 39.1,     // K+ 当量质量
+    Na: 22.99,   // Na+ 当量质量
+    HCO3: 61.02, // HCO3⁻ 当量质量
+    CO3: 30.005, // CO3²⁻ 当量质量 = 60.01/2
+    SO4: 48.03,  // SO4²⁻ 当量质量 = 96.06/2
+    Cl: 35.45    // Cl⁻ 当量质量
 };
 
 // 全局变量
-let plotData = [];
-let layout = {};
-let config = {responsive: true};
-let allPoints = [];
-let parallelogram = {};
-let showDivisionFlag = false;
+let plotData = [];       // 绘图数据
+let layout = {};         // 布局配置
+let config = {responsive: true}; // 响应式配置
+let allPoints = [];      // 所有数据点
+let showDivisionFlag = false; // 是否显示六区划分
+const sqrt3 = Math.sqrt(3)/2; // 等边三角形高系数
 
 // ===================== 初始化绘图 =====================
 window.onload = function() {
     initPiperPlot();
 };
 
+/**
+ * 初始化Piper三线图基础结构
+ */
 function initPiperPlot() {
-    layout = {
-        title: { text: '地下水Piper三线图分析', font: { size: 16 }},
-        showlegend: false,
-        xaxis: { range: [-0.2, 2.4], showgrid: true, zeroline: false, title: 'X轴' },
-        yaxis: { range: [-0.2, 2.0], showgrid: true, zeroline: false, title: 'Y轴' },
-        plot_bgcolor: 'aliceblue',
-        paper_bgcolor: 'white'
-    };
+    // 清空绘图数据
     plotData = [];
-    drawBaseTriangles();
+    
+    // 布局配置（适配Piper图坐标范围）
+    layout = {
+        title: { text: '地下水Piper三线图分析', font: { size: 18, color: '#2c3e50' }},
+        showlegend: false,
+        xaxis: { 
+            range: [-0.1, 3.0], 
+            showgrid: false, 
+            zeroline: false, 
+            tickmode: 'array',
+            tickvals: [],
+            ticktext: [],
+            title: { text: '', font: { size: 12 }}
+        },
+        yaxis: { 
+            range: [-0.1, 2.0], 
+            showgrid: false, 
+            zeroline: false,
+            tickmode: 'array',
+            tickvals: [],
+            ticktext: [],
+            title: { text: '', font: { size: 12 }}
+        },
+        plot_bgcolor: '#ffffff',
+        paper_bgcolor: '#f8f9fa',
+        margin: { l: 20, r: 20, t: 40, b: 20 }
+    };
+
+    // 绘制基础三线图结构
+    drawCationTriangle();   // 左侧阳离子三角
+    drawAnionTriangle();    // 右侧阴离子三角
+    drawDiamondArea();      // 中间钻石区
+    drawAxisLabels();       // 绘制轴标签
+    
+    // 初始化绘图
     Plotly.newPlot('plotArea', plotData, layout, config);
 }
 
-// ===================== 绘制基础三角形与平行四边形 =====================
-function drawBaseTriangles() {
-    const sqrt3 = Math.sqrt(3)/2;
-    // 阳离子三角形
-    const cation = [[0,0], [1,0], [0.5, sqrt3], [0,0]];
-    addLine(cation, '#336699', 2.5);
-    
-    // 阴离子三角形
-    const anion = [[1.2,0], [2.2,0], [1.7, sqrt3], [1.2,0]];
-    addLine(anion, '#cc6666', 2.5);
-
-    // 网格线
-    drawGrid([[0,0],[1,0],[0.5,sqrt3]], '#e1f0ff');
-    drawGrid([[1.2,0],[2.2,0],[1.7,sqrt3]], '#ffe5e5');
-
-    // 计算平行四边形
-    calcParallelogram(sqrt3);
-    // 绘制平行四边形
-    const para = [
-        [parallelogram.bottom.x, parallelogram.bottom.y],
-        [parallelogram.left.x, parallelogram.left.y],
-        [parallelogram.top.x, parallelogram.top.y],
-        [parallelogram.right.x, parallelogram.right.y],
-        [parallelogram.bottom.x, parallelogram.bottom.y]
+/**
+ * 绘制左侧阳离子三角形（Ca-Mg-Na+K）
+ */
+function drawCationTriangle() {
+    // 阳离子三角顶点坐标（等边三角形，边长1）
+    const cationVertices = [
+        [0.0, 0.0],    // Na+K 顶点
+        [1.0, 0.0],    // Mg 顶点
+        [0.5, sqrt3]   // Ca 顶点
     ];
-    addLine(para, '#99cc99', 2);
-    drawParaGrid();
+    
+    // 绘制三角形边框
+    addLine([...cationVertices, cationVertices[0]], '#2c3e50', 2);
+    
+    // 绘制百分比网格线（0-100%）
+    drawTriangleGrid(cationVertices, '#e8f4f8', 0.1);
+    
+    // 标注顶点文字
+    addTextAnnotation(0.0, -0.08, 'Na+K', 12, 'middle center');
+    addTextAnnotation(1.0, -0.08, 'Mg', 12, 'middle center');
+    addTextAnnotation(0.5, sqrt3 + 0.08, 'Ca', 12, 'middle center');
 }
 
-// 计算平行四边形顶点
-function calcParallelogram(sqrt3) {
-    parallelogram.top = {x: 1.1, y: sqrt3 + 0.2};
-    parallelogram.left = {x: 0.6, y: sqrt3 + 0.6};
-    parallelogram.right = {x: 1.6, y: sqrt3 + 0.6};
-    parallelogram.bottom = {x: 1.1, y: sqrt3 + 1.0};
+/**
+ * 绘制右侧阴离子三角形（HCO3+CO3-SO4-Cl）
+ */
+function drawAnionTriangle() {
+    // 阴离子三角顶点坐标（偏移1.5，与阳离子三角对齐）
+    const anionVertices = [
+        [1.5, 0.0],    // Cl 顶点
+        [2.5, 0.0],    // SO4 顶点
+        [2.0, sqrt3]   // HCO3+CO3 顶点
+    ];
+    
+    // 绘制三角形边框
+    addLine([...anionVertices, anionVertices[0]], '#e74c3c', 2);
+    
+    // 绘制百分比网格线（0-100%）
+    drawTriangleGrid(anionVertices, '#fef2f2', 0.1);
+    
+    // 标注顶点文字
+    addTextAnnotation(1.5, -0.08, 'Cl', 12, 'middle center');
+    addTextAnnotation(2.5, -0.08, 'SO4', 12, 'middle center');
+    addTextAnnotation(2.0, sqrt3 + 0.08, 'HCO3+CO3', 12, 'middle center');
 }
 
-// 绘制线条
-function addLine(points, color, width) {
-    let x = [], y = [];
-    points.forEach(p => { x.push(p[0]); y.push(p[1]); });
-    plotData.push({
-        type: 'scatter', x, y, mode: 'lines',
-        line: { color, width },
-        hoverinfo: 'skip'
-    });
-}
-
-// 绘制网格
-function drawGrid(tri, color) {
+/**
+ * 绘制中间钻石区（Piper核心区）
+ */
+function drawDiamondArea() {
+    // 钻石区顶点（连接阴阳离子三角的中点）
+    const diamondVertices = [
+        [1.0, sqrt3],  // 阳离子三角顶点延伸
+        [1.5, sqrt3 + sqrt3/2], // 上顶点
+        [2.0, sqrt3],  // 阴离子三角顶点延伸
+        [1.5, sqrt3/2], // 下顶点
+        [1.0, sqrt3]   // 闭合
+    ];
+    
+    // 绘制钻石区边框
+    addLine(diamondVertices, '#27ae60', 2);
+    
+    // 绘制钻石区内部网格
     for(let i=1; i<10; i++) {
-        let r = i/10;
-        let p1 = lerp(tri[0], tri[1], r);
-        let p2 = lerp(tri[0], tri[2], r);
-        let p3 = lerp(tri[1], tri[2], r);
+        const ratio = i/10;
+        // 水平网格
+        const y1 = sqrt3/2 + ratio * sqrt3/2;
+        addLine([[1.0 + ratio*0.5, y1], [2.0 - ratio*0.5, y1]], '#e6f5e9', 0.5);
+        // 垂直网格
+        const x1 = 1.5 - ratio*0.5;
+        const x2 = 1.5 + ratio*0.5;
+        addLine([[x1, sqrt3/2 + (1-ratio)*sqrt3/2], [x2, sqrt3/2 + ratio*sqrt3/2]], '#e6f5e9', 0.5);
+    }
+}
+
+/**
+ * 绘制轴标签
+ */
+function drawAxisLabels() {
+    // 阳离子三角标签
+    addTextAnnotation(0.5, -0.2, '阳离子三角图（当量%）', 14, 'middle center', '#2c3e50');
+    // 阴离子三角标签
+    addTextAnnotation(2.0, -0.2, '阴离子三角图（当量%）', 14, 'middle center', '#e74c3c');
+    // 钻石区标签
+    addTextAnnotation(1.5, 1.8, '水化学类型钻石区', 14, 'middle center', '#27ae60');
+}
+
+/**
+ * 绘制三角形内部网格
+ * @param {Array} vertices 三角形顶点
+ * @param {String} color 网格颜色
+ * @param {Number} step 步长（0-1）
+ */
+function drawTriangleGrid(vertices, color, step) {
+    for(let r=step; r<1; r+=step) {
+        // 绘制平行于底边的线
+        const p1 = lerp(vertices[0], vertices[1], r);
+        const p2 = lerp(vertices[0], vertices[2], r);
+        const p3 = lerp(vertices[1], vertices[2], r);
         addLine([p1, p2], color, 0.5);
         addLine([p2, p3], color, 0.5);
     }
 }
 
-function drawParaGrid() {
-    const p = parallelogram;
-    for(let i=1; i<10; i++) {
-        let r1 = i/10, r2 = 1-i/10;
-        let a = lerp([p.bottom.x,p.bottom.y], [p.left.x,p.left.y], r1);
-        let b = lerp([p.top.x,p.top.y], [p.right.x,p.right.y], r2);
-        let c = lerp([p.left.x,p.left.y], [p.top.x,p.top.y], r1);
-        let d = lerp([p.right.x,p.right.y], [p.bottom.x,p.bottom.y], r2);
-        addLine([a,b], '#eee', 0.5);
-        addLine([c,d], '#eee', 0.5);
-    }
+/**
+ * 添加线条到绘图数据
+ * @param {Array} points 坐标点数组 [[x1,y1],[x2,y2],...]
+ * @param {String} color 颜色
+ * @param {Number} width 线宽
+ */
+function addLine(points, color, width) {
+    const x = points.map(p => p[0]);
+    const y = points.map(p => p[1]);
+    plotData.push({
+        type: 'scatter',
+        x: x,
+        y: y,
+        mode: 'lines',
+        line: { color: color, width: width },
+        hoverinfo: 'skip'
+    });
 }
 
-function lerp(a,b,t) {
-    return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t];
+/**
+ * 添加文字标注
+ * @param {Number} x X坐标
+ * @param {Number} y Y坐标
+ * @param {String} text 文字内容
+ * @param {Number} size 字体大小
+ * @param {String} align 对齐方式
+ * @param {String} color 文字颜色
+ */
+function addTextAnnotation(x, y, text, size=12, align='middle center', color='#333') {
+    plotData.push({
+        type: 'scatter',
+        x: [x],
+        y: [y],
+        text: [text],
+        mode: 'text',
+        textfont: { size: size, color: color },
+        textposition: align,
+        hoverinfo: 'skip'
+    });
+}
+
+/**
+ * 线性插值计算
+ * @param {Array} a 起点 [x,y]
+ * @param {Array} b 终点 [x,y]
+ * @param {Number} t 插值比例（0-1）
+ * @returns {Array} 插值点坐标
+ */
+function lerp(a, b, t) {
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 }
 
 // ===================== 六区划分 =====================
 function showDivisions() {
     if(showDivisionFlag) return;
     showDivisionFlag = true;
-    const p = parallelogram;
+
+    // 六区划分坐标（基于钻石区）
     const zones = [
-        {pts: [[0.85,1.066],[1.1,0.866],[1.35,1.066],[0.85,1.066]], color: 'rgba(255,204,204,0.5)', text:'6区:非碳酸硬度>50%'},
-        {pts: [[1.1,1.066],[0.85,1.066],[1.1,0.866],[1.1,1.066]], color: 'rgba(204,204,255,0.5)', text:'9区:无离子>50%'},
-        {pts: [[0.85,1.266],[0.6,1.066],[0.85,1.066],[1.1,1.266],[0.85,1.266]], color:'rgba(204,255,204,0.5)', text:'5区:碳酸硬度>50%'},
-        {pts: [[1.1,1.066],[1.35,1.066],[1.6,1.066],[1.35,1.266],[1.1,1.066]], color:'rgba(255,255,204,0.5)', text:'7区:非碳酸碱金属>50%'},
-        {pts: [[1.35,1.266],[1.1,1.266],[1.1,1.066],[1.35,1.266]], color:'rgba(204,204,255,0.5)', text:'9区:无离子>50%'},
-        {pts: [[0.85,1.266],[1.35,1.266],[1.1,1.466],[0.85,1.266]], color:'rgba(255,204,255,0.5)', text:'8区:碳酸碱金属>50%'}
+        {
+            pts: [[1.0, sqrt3], [1.25, 1.5*sqrt3], [1.5, 1.732], [1.25, sqrt3], [1.0, sqrt3]],
+            color: 'rgba(255, 228, 225, 0.5)',
+            text: '1区:碳酸盐钙型'
+        },
+        {
+            pts: [[1.5, 1.732], [1.75, 1.5*sqrt3], [2.0, sqrt3], [1.75, sqrt3], [1.5, 1.732]],
+            color: 'rgba(224, 247, 250, 0.5)',
+            text: '2区:碳酸盐钠型'
+        },
+        {
+            pts: [[1.25, 1.5*sqrt3], [1.5, 1.732], [1.75, 1.5*sqrt3], [1.5, sqrt3], [1.25, 1.5*sqrt3]],
+            color: 'rgba(241, 248, 233, 0.5)',
+            text: '3区:碳酸盐型'
+        },
+        {
+            pts: [[1.0, sqrt3], [1.25, sqrt3], [1.5, sqrt3/2], [1.25, 1.5*sqrt3], [1.0, sqrt3]],
+            color: 'rgba(252, 248, 227, 0.5)',
+            text: '4区:硫酸盐钙型'
+        },
+        {
+            pts: [[1.5, sqrt3/2], [1.75, sqrt3], [2.0, sqrt3], [1.75, 1.5*sqrt3], [1.5, sqrt3/2]],
+            color: 'rgba(230, 225, 249, 0.5)',
+            text: '5区:氯化物钠型'
+        },
+        {
+            pts: [[1.25, sqrt3], [1.5, sqrt3/2], [1.75, sqrt3], [1.5, sqrt3], [1.25, sqrt3]],
+            color: 'rgba(255, 235, 238, 0.5)',
+            text: '6区:混合类型'
+        }
     ];
 
+    // 添加六区到绘图
     zones.forEach(z => {
-        let x = [], y = [];
-        z.pts.forEach(p => {x.push(p[0]); y.push(p[1]);});
-        plotData.push({type:'scatter',x,y,mode:'lines',line:{color:'black',width:1},fill:'toself',fillcolor:z.color,hoverinfo:'skip'});
+        // 绘制区域填充
         plotData.push({
-            type:'scatter',x:[z.pts[2][0]],y:[z.pts[2][1]],text:[z.text],mode:'text',textfont:{size:8},hoverinfo:'skip'
+            type: 'scatter',
+            x: z.pts.map(p => p[0]),
+            y: z.pts.map(p => p[1]),
+            mode: 'lines',
+            line: { color: '#7f8c8d', width: 1 },
+            fill: 'toself',
+            fillcolor: z.color,
+            hoverinfo: 'skip'
         });
+        // 标注区域文字
+        const centerX = z.pts.reduce((sum, p) => sum + p[0], 0) / z.pts.length;
+        const centerY = z.pts.reduce((sum, p) => sum + p[1], 0) / z.pts.length;
+        addTextAnnotation(centerX, centerY, z.text, 9, 'middle center', '#2c3e50');
     });
+
     Plotly.update('plotArea', plotData, layout);
 }
 
@@ -212,7 +345,7 @@ function hideDivisions() {
     if(allPoints.length > 0) renderAllPoints();
 }
 
-// ===================== Excel导入 =====================
+// ===================== Excel导入与数据处理 =====================
 function selectExcel() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -221,114 +354,274 @@ function selectExcel() {
         const file = e.target.files[0];
         const reader = new FileReader();
         reader.onload = ev => {
-            const wb = XLSX.read(ev.target.result);
-            const sheet = wb.Sheets[wb.SheetNames[0]];
-            const data = XLSX.utils.sheet_to_json(sheet, {header:1});
-            processExcelData(data);
+            try {
+                const wb = XLSX.read(ev.target.result);
+                const sheet = wb.Sheets[wb.SheetNames[0]];
+                const data = XLSX.utils.sheet_to_json(sheet, {header:1});
+                processExcelData(data);
+            } catch (err) {
+                alert('Excel解析失败：' + err.message);
+            }
         };
         reader.readAsArrayBuffer(file);
     };
     input.click();
 }
 
+/**
+ * 处理Excel数据并计算Piper图坐标
+ * @param {Array} data Excel数据（二维数组）
+ */
 function processExcelData(data) {
     allPoints = [];
+    // 清空结果区域
     document.getElementById('resultText').innerHTML = '';
     document.querySelector('#resultTable tbody').innerHTML = '';
-    
+
+    // 校验表头（第一行应为：序号,Ca%,Mg%,Na+K%,HCO3+CO3%,SO4%,Cl%）
+    const header = data[0] || [];
+    const requiredHeaders = ['序号', 'Ca%', 'Mg%', 'Na+K%', 'HCO3+CO3%', 'SO4%', 'Cl%'];
+    if(!header.some(h => h && requiredHeaders.includes(h.toString().trim()))) {
+        alert('Excel表头格式错误！请确保表头包含：序号,Ca%,Mg%,Na+K%,HCO3+CO3%,SO4%,Cl%');
+        return;
+    }
+
+    // 处理数据行（从第二行开始）
     for(let i=1; i<data.length; i++) {
         const row = data[i];
-        if(!row || row.length <9) continue;
-        const NO = row[0] || i;
-        const ca = row[1]||0, mg=row[2]||0, k=row[3]||0, na=row[4]||0;
-        const hco3=row[5]||0, co3=row[6]||0, so4=row[7]||0, cl=row[8]||0;
+        if(!row || row.length < 7) continue; // 跳过空行/不完整行
 
-        // 当量计算
-        const caEq = ca/(CONST.Ca/2), mgEq=mg/(CONST.Mg/2);
-        const kEq=k/CONST.K, naEq=na/CONST.Na;
-        const catTotal = caEq+mgEq+kEq+naEq;
+        // 提取数据（兼容不同列顺序，优先按表头匹配）
+        const rowObj = {};
+        header.forEach((h, idx) => {
+            if(h && row[idx] !== undefined) {
+                rowObj[h.toString().trim()] = parseFloat(row[idx]) || 0;
+            }
+        });
+
+        // 基础数据（兼容直接按列索引）
+        const NO = rowObj['序号'] || row[0] || i;
+        const ca = rowObj['Ca%'] || row[1] || 0;
+        const mg = rowObj['Mg%'] || row[2] || 0;
+        const nak = rowObj['Na+K%'] || row[3] || 0;
+        const hc = rowObj['HCO3+CO3%'] || row[4] || 0;
+        const so = rowObj['SO4%'] || row[5] || 0;
+        const cl = rowObj['Cl%'] || row[6] || 0;
+
+        // 校验数据有效性
+        const catSum = ca + mg + nak;
+        const aniSum = hc + so + cl;
+        if(catSum === 0 || aniSum === 0) {
+            console.warn(`数据点${NO}：阴阳离子百分比和为0，跳过`);
+            continue;
+        }
+
+        // ===================== 核心：计算Piper图坐标 =====================
+        // 1. 阳离子三角坐标（Ca-Mg-Na+K）
+        const cationX = (nak / catSum);          // Na+K占比（X轴）
+        const cationY = (ca / catSum) * sqrt3;   // Ca占比（Y轴，等边三角形高）
         
-        const hco3Eq = hco3/CONST.HCO3, co3Eq=co3/(CONST.CO3/2);
-        const so4Eq=so4/(CONST.SO4/2), clEq=cl/CONST.Cl;
-        const aniTotal = hco3Eq+co3Eq+so4Eq+clEq;
+        // 2. 阴离子三角坐标（HCO3+CO3-SO4-Cl）
+        const anionX = 1.5 + (cl / aniSum);      // Cl占比（X轴，偏移1.5）
+        const anionY = (hc / aniSum) * sqrt3;    // HCO3+CO3占比（Y轴）
+        
+        // 3. 钻石区坐标（映射规则：连接阴阳离子三角的投影）
+        const diamondX = 1.0 + (cationX * 0.5) + ((anionX - 1.5) * 0.5);
+        const diamondY = sqrt3/2 + (cationY * 0.5) + (anionY * 0.5);
 
-        // 百分比
-        const caPer = (caEq/catTotal*100).toFixed(1);
-        const mgPer = (mgEq/catTotal*100).toFixed(1);
-        const nakPer = ((kEq+naEq)/catTotal*100).toFixed(1);
-        const hcPer = ((hco3Eq+co3Eq)/aniTotal*100).toFixed(1);
-        const soPer = (so4Eq/aniTotal*100).toFixed(1);
-        const clPer = (clEq/aniTotal*100).toFixed(1);
+        // 4. 判定区域和水化学类型
+        const zone = getZone(diamondX, diamondY);
+        const waterType = getWaterType(diamondX, diamondY);
 
-        // 点位
-        const diaX = 0.7 + Number(nakPer)/100*0.8;
-        const diaY = 1.0 + Number(hcPer)/100*0.4;
-        const zone = getZone(diaX, diaY);
-        const type = getWaterType(diaX, diaY);
+        // 存储数据点
+        const point = {
+            NO,
+            caPer: ca.toFixed(1),
+            mgPer: mg.toFixed(1),
+            nakPer: nak.toFixed(1),
+            hcPer: hc.toFixed(1),
+            soPer: so.toFixed(1),
+            clPer: cl.toFixed(1),
+            cationX, cationY,  // 阳离子三角坐标
+            anionX, anionY,    // 阴离子三角坐标
+            diamondX, diamondY,// 钻石区坐标
+            zone,
+            type: waterType
+        };
+        allPoints.push(point);
 
-        allPoints.push({NO, x:diaX, y:diaY, caPer,mgPer,nakPer,hcPer,soPer,clPer,zone,type});
-        addResultText(NO, caPer,mgPer,nakPer,hcPer,soPer,clPer,zone,type);
+        // 添加到结果文本
+        addResultText(point);
     }
+
+    // 渲染所有数据点
     renderAllPoints();
+    // 渲染结果表格
     renderTable();
 }
 
-// ===================== 点位渲染 =====================
+// ===================== 数据点渲染 =====================
 function renderAllPoints() {
-    let x = [], y = [], text = [];
-    allPoints.forEach(p => {
-        x.push(p.x); y.push(p.y); text.push(p.NO);
-    });
+    // 阳离子三角数据点
+    const cationX = allPoints.map(p => p.cationX);
+    const cationY = allPoints.map(p => p.cationY);
+    const cationText = allPoints.map(p => p.NO);
+    
     plotData.push({
-        type:'scatter', x,y, mode:'markers+text',text,textposition:'top right',
-        marker:{color:'orange', size:6, symbol:'circle'},
-        textfont:{size:10}, hoverinfo:'text'
+        type: 'scatter',
+        x: cationX,
+        y: cationY,
+        mode: 'markers+text',
+        text: cationText,
+        textposition: 'top right',
+        marker: { color: '#3498db', size: 8, symbol: 'circle', line: { width: 1, color: '#fff' } },
+        textfont: { size: 10, color: '#2c3e50' },
+        hoverinfo: 'text',
+        hovertext: allPoints.map(p => `数据点${p.NO}<br>Ca:${p.caPer}%<br>Mg:${p.mgPer}%<br>Na+K:${p.nakPer}%`)
     });
+
+    // 阴离子三角数据点
+    const anionX = allPoints.map(p => p.anionX);
+    const anionY = allPoints.map(p => p.anionY);
+    
+    plotData.push({
+        type: 'scatter',
+        x: anionX,
+        y: anionY,
+        mode: 'markers+text',
+        text: cationText,
+        textposition: 'top right',
+        marker: { color: '#e74c3c', size: 8, symbol: 'circle', line: { width: 1, color: '#fff' } },
+        textfont: { size: 10, color: '#2c3e50' },
+        hoverinfo: 'text',
+        hovertext: allPoints.map(p => `数据点${p.NO}<br>HCO3+CO3:${p.hcPer}%<br>SO4:${p.soPer}%<br>Cl:${p.clPer}%`)
+    });
+
+    // 钻石区数据点（核心）
+    const diamondX = allPoints.map(p => p.diamondX);
+    const diamondY = allPoints.map(p => p.diamondY);
+    
+    plotData.push({
+        type: 'scatter',
+        x: diamondX,
+        y: diamondY,
+        mode: 'markers+text',
+        text: cationText,
+        textposition: 'top right',
+        marker: { color: '#f39c12', size: 10, symbol: 'circle', line: { width: 2, color: '#fff' } },
+        textfont: { size: 11, color: '#e67e22' },
+        hoverinfo: 'text',
+        hovertext: allPoints.map(p => 
+            `数据点${p.NO}<br>类型:${p.type}<br>区域:${p.zone}区<br>
+            Ca:${p.caPer}% | Mg:${p.mgPer}% | Na+K:${p.nakPer}%<br>
+            HCO3+CO3:${p.hcPer}% | SO4:${p.soPer}% | Cl:${p.clPer}%`
+        )
+    });
+
+    // 更新绘图
     Plotly.update('plotArea', plotData, layout);
 }
 
 // ===================== 辅助函数 =====================
-function getZone(x,y) {
-    if(x<1.1 && y>1.066) return "1、3、6";
-    if(x<1.1 && y<1.066) return "1、4、5";
-    if(x>1.1 && y>1.066) return "2、3、7";
-    if(x>1.1 && y<1.066) return "2、4、8";
+/**
+ * 判定钻石区所属区域
+ * @param {Number} x 钻石区X坐标
+ * @param {Number} y 钻石区Y坐标
+ * @returns {String} 区域编号
+ */
+function getZone(x, y) {
+    if(x < 1.25 && y > 1.0) return "1、3、6";
+    if(x < 1.25 && y <= 1.0) return "1、4、5";
+    if(x >= 1.25 && x <= 1.75 && y > 1.0) return "2、3、6";
+    if(x > 1.75 && y > 1.0) return "2、3、7";
+    if(x >= 1.25 && x <= 1.75 && y <= 1.0) return "2、4、6";
+    if(x > 1.75 && y <= 1.0) return "2、4、8";
     return "9";
 }
 
-function getWaterType(x,y) {
-    if(x<1.1&&y>1.066) return "碳酸盐型水";
-    if(x>1.1&&y>1.066) return "硫酸盐-氯化物型水";
-    if(x<1.1&&y<1.066) return "钙镁型水";
-    return "钠-氯化物型水";
+/**
+ * 判定水化学类型
+ * @param {Number} x 钻石区X坐标
+ * @param {Number} y 钻石区Y坐标
+ * @returns {String} 水化学类型
+ */
+function getWaterType(x, y) {
+    if(y > 1.2) return "碳酸盐型水";
+    if(x < 1.25 && y <= 1.2) return "钙镁型水";
+    if(x > 1.75 && y <= 1.2) return "钠-氯化物型水";
+    return "硫酸盐-氯化物型水";
 }
 
-function addResultText(NO,ca,mg,nak,hc,so,cl,zone,type) {
-    const div = document.getElementById('resultText');
-    div.innerHTML += `[数据点 ${NO}] Ca=${ca}% | Mg=${mg}% | Na+K=${nak}% | HCO3+CO3=${hc}% | SO4=${so}% | Cl=${cl}%<br>`;
-    div.innerHTML += `→ 区域：${zone} 区 | 类型：${type}<br>————————————————<br>`;
+/**
+ * 添加结果文本到页面
+ * @param {Object} point 数据点对象
+ */
+function addResultText(point) {
+    const resultDiv = document.getElementById('resultText');
+    resultDiv.innerHTML += `
+        [数据点 ${point.NO}] Ca=${point.caPer}% | Mg=${point.mgPer}% | Na+K=${point.nakPer}% | 
+        HCO3+CO3=${point.hcPer}% | SO4=${point.soPer}% | Cl=${point.clPer}%<br>
+        → 区域：${point.zone} 区 | 类型：${point.type}<br>
+        ————————————————<br>
+    `;
 }
 
+/**
+ * 渲染结果表格
+ */
 function renderTable() {
-    const tb = document.querySelector('#resultTable tbody');
-    allPoints.forEach(p => {
-        tb.innerHTML += `<tr>
-            <td>${p.NO}</td><td>${p.caPer}</td><td>${p.mgPer}</td><td>${p.nakPer}</td>
-            <td>${p.hcPer}</td><td>${p.soPer}</td><td>${p.clPer}</td><td>${p.zone}</td><td>${p.type}</td>
-        </tr>`;
+    const tbody = document.querySelector('#resultTable tbody');
+    allPoints.forEach(point => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${point.NO}</td>
+                <td>${point.caPer}</td>
+                <td>${point.mgPer}</td>
+                <td>${point.nakPer}</td>
+                <td>${point.hcPer}</td>
+                <td>${point.soPer}</td>
+                <td>${point.clPer}</td>
+                <td>${point.zone}</td>
+                <td>${point.type}</td>
+            </tr>
+        `;
     });
 }
 
-// ===================== 导出 =====================
+// ===================== 导出功能 =====================
 function exportImage() {
-    Plotly.downloadImage('plotArea', {format:'png', width:1200, height:800, filename:'Piper三线图'});
+    Plotly.downloadImage('plotArea', {
+        format: 'png',
+        width: 1200,
+        height: 800,
+        filename: '地下水Piper三线图_' + new Date().toLocaleDateString().replace(/\//g, '-')
+    });
 }
 
 function exportExcel() {
-    const ws = XLSX.utils.json_to_sheet(allPoints);
+    if(allPoints.length === 0) {
+        alert('暂无数据可导出！');
+        return;
+    }
+
+    // 整理导出数据
+    const exportData = allPoints.map(p => ({
+        '序号': p.NO,
+        'Ca%': p.caPer,
+        'Mg%': p.mgPer,
+        'Na+K%': p.nakPer,
+        'HCO3+CO3%': p.hcPer,
+        'SO4%': p.soPer,
+        'Cl%': p.clPer,
+        '所属区域': p.zone + '区',
+        '水化学类型': p.type
+    }));
+
+    // 生成Excel文件
+    const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "分析结果");
-    XLSX.writeFile(wb, "地下水Piper分析结果.xlsx");
+    XLSX.utils.book_append_sheet(wb, ws, 'Piper分析结果');
+    XLSX.writeFile(wb, '地下水Piper三线图分析结果.xlsx');
 }
 </script>
 </body>
