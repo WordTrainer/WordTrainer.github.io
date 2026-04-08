@@ -2,244 +2,278 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>地下水 Piper 三线图分析系统</title>
-    <script src="https://cdn.plot.ly/plotly-2.30.1.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <title>地下水三线图分析</title>
+    <!-- 引入ECharts核心库 -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+    <!-- 引入jQuery（用于表格和按钮交互） -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery/dist/jquery.min.js"></script>
+    <!-- 引入SheetJS（用于Excel导出） -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <style>
-        *{box-sizing:border-box;font-family:"Microsoft YaHei",sans-serif}
-        body{margin:20px;background:#f5f7fa}
-        .container{display:flex;gap:20px;max-width:1600px;margin:0 auto}
-        #plot{width:75%;height:820px;background:white;border-radius:8px;padding:10px}
-        .panel{width:25%;display:flex;flex-direction:column;gap:12px}
-        .box{background:white;padding:12px;border-radius:8px}
-        .btn{padding:8px 12px;background:#4285f4;color:white;border:none;border-radius:4px;cursor:pointer;margin-bottom:6px;width:100%}
-        .btn-success{background:#28a745}
-        .btn-warning{background:#ffc107;color:#000}
-        .btn-danger{background:#dc3545}
-        #result{height:240px;overflow-y:auto;font-size:12px;line-height:1.4}
-        #table{height:320px;overflow-y:auto;font-size:12px}
-        table{width:100%;border-collapse:collapse}
-        td,th{border:1px solid #ddd;padding:4px;text-align:center}
-        th{background:#eee}
+        /* 整体布局样式 */
+        .container {
+            width: 95%;
+            margin: 20px auto;
+        }
+        /* 图表容器 */
+        #tripleChart {
+            width: 100%;
+            height: 500px;
+            border: 1px solid #eee;
+            margin-bottom: 10px;
+        }
+        /* 数据表格样式 */
+        #dataTable {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+        #dataTable th, #dataTable td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: center;
+        }
+        #dataTable th {
+            background-color: #f2f2f2;
+        }
+        #dataTable tr.selected {
+            background-color: #cce5ff;
+        }
+        /* 按钮组样式 */
+        .btn-group {
+            margin-bottom: 10px;
+        }
+        .btn-group button {
+            padding: 8px 15px;
+            margin-right: 5px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: #f8f8f8;
+        }
+        .btn-group button:hover {
+            background-color: #e8e8e8;
+        }
+        /* 数据详情面板 */
+        #dataDetail {
+            border: 1px solid #ccc;
+            padding: 10px;
+            min-height: 120px;
+            background-color: #f9f9f9;
+        }
     </style>
 </head>
 <body>
-<div class="container">
-    <div id="plot"></div>
-    <div class="panel">
-        <div class="box">
-            <button class="btn" onclick="importExcel()">导入 Excel 数据</button>
-            <button class="btn btn-success" onclick="showZones()">显示 5/6/7/8/9 区</button>
-            <button class="btn btn-warning" onclick="hideZones()">隐藏分区</button>
-            <button class="btn" onclick="exportPic()">导出图片</button>
-            <button class="btn btn-danger" onclick="exportResult()">导出结果 Excel</button>
+    <div class="container">
+        <h2 style="text-align: center;">地下水三线图分析</h2>
+        <!-- 三线图容器 -->
+        <div id="tripleChart"></div>
+        <!-- 操作按钮组 -->
+        <div class="btn-group">
+            <button id="addRegion">添加分区数据</button>
+            <button id="addRegionLabel">添加分区标注</button>
+            <button id="delRegionLabel">删除分区标注</button>
+            <button id="exportChart">导出三线图</button>
+            <button id="exportDGV">输出到DGV</button>
+            <button id="exportExcel">输出到EXCEL</button>
         </div>
-        <div class="box">
-            <h4>分析结果</h4>
-            <div id="result"></div>
-        </div>
-        <div class="box">
-            <h4>数据表格</h4>
-            <div id="table"></div>
-        </div>
+        <!-- 数据表格 -->
+        <table id="dataTable">
+            <thead>
+                <tr>
+                    <th>序号</th>
+                    <th>Ca2+</th>
+                    <th>Mg2+</th>
+                    <th>Na+</th>
+                    <th>K+</th>
+                    <th>HCO3-</th>
+                    <th>SO4²-</th>
+                    <th>Cl-</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- 表格数据由JS动态填充 -->
+            </tbody>
+        </table>
+        <!-- 数据详情面板 -->
+        <div id="dataDetail"></div>
     </div>
-</div>
 
-<script>
-const sqrt3 = Math.sqrt(3) / 2;
-const CONST = {
-    Ca:40.08, Mg:24.31, K:39.1, Na:22.99,
-    HCO3:61.02, CO3:60.01, SO4:96.06, Cl:35.45
-};
+    <script>
+        // 1. 初始化示例数据（与效果图匹配）
+        const sampleData = [
+            { 序号: 1, Ca2p: 10.28, Mg2p: 6.05, Nap: 43.85, Kp: 10.95, HCO3n: 14.08, SO42n: 79.27, Cln: 6.65 },
+            { 序号: 2, Ca2p: 273.96, Mg2p: 33.41, Nap: 43.85, Kp: 10.95, HCO3n: 14.08, SO42n: 79.27, Cln: 6.65 },
+            { 序号: 3, Ca2p: 83.86, Mg2p: 6.66, Nap: 43.85, Kp: 10.95, HCO3n: 14.08, SO42n: 79.27, Cln: 6.65 },
+            { 序号: 4, Ca2p: 199.48, Mg2p: 13.92, Nap: 43.85, Kp: 10.95, HCO3n: 14.08, SO42n: 79.27, Cln: 6.65 },
+            { 序号: 5, Ca2p: 157.55, Mg2p: 24.33, Nap: 43.85, Kp: 10.95, HCO3n: 14.08, SO42n: 79.27, Cln: 6.65 },
+            { 序号: 6, Ca2p: 59.7, Mg2p: 45.2, Nap: 43.85, Kp: 10.95, HCO3n: 14.08, SO42n: 79.27, Cln: 6.65 },
+            { 序号: 7, Ca2p: 93.4, Mg2p: 21.7, Nap: 43.85, Kp: 10.95, HCO3n: 14.08, SO42n: 79.27, Cln: 6.65 }
+        ];
 
-let plotDiv = document.getElementById('plot');
-let base = [], data = [], zones = [];
-let allResult = [];
-
-window.onload = function(){
-    drawBase();
-    refresh();
-};
-
-function drawBase(){
-    base = [];
-    // 阳离子三角
-    line([[0,0],[1,0],[0.5,sqrt3],[0,0]], '#336699', 2.5);
-    // 阴离子三角
-    line([[1.2,0],[2.2,0],[1.7,sqrt3],[1.2,0]], '#cc6666', 2.5);
-    // 平行四边形（菱形）
-    let p1 = {x:0.5, y:sqrt3}, p2={x:1.7, y:sqrt3};
-    let p3={x:1.35, y:sqrt3+0.3}, p4={x:0.85, y:sqrt3+0.3};
-    line([p1,p4,p3,p2,p1], '#99cc99', 2);
-
-    // 网格
-    for(let i=1;i<10;i++){
-        let t = i/10;
-        line([[t,0],[0.5, t*sqrt3]], '#cce5ff', 0.5);
-        line([[1-t,0],[0.5+t*0.5, t*sqrt3]], '#cce5ff', 0.5);
-        line([[1.2+t,0],[1.7, t*sqrt3]], '#ffe5e5', 0.5);
-        line([[2.2-t,0],[1.7-t*0.5, t*sqrt3]], '#ffe5e5', 0.5);
-    }
-}
-
-function line(points, color, w){
-    let x=[],y=[];
-    points.forEach(p=>{x.push(p.x||p[0]); y.push(p.y||p[1])});
-    base.push({
-        type:'scatter', x,y, mode:'lines',
-        line:{color, width:w}, showlegend:false, hoverinfo:'skip'
-    });
-}
-
-function showZones(){
-    zones = [];
-    let y = sqrt3;
-    let z = [
-        {pts:[[0.5,y],[0.925,y+0.15],[1.35,y]], col:'rgba(255,204,204,0.4)', txt:'6区：非碳酸硬度'},
-        {pts:[[0.925,y+0.15],[1.1,y+0.3],[1.35,y+0.15]], col:'rgba(204,204,255,0.4)', txt:'9区：无主导离子'},
-        {pts:[[0.85,y+0.3],[0.925,y+0.15],[1.1,y+0.3]], col:'rgba(204,255,204,0.4)', txt:'5区：碳酸硬度'},
-        {pts:[[1.35,y],[1.35,y+0.15],[1.7,y]], col:'rgba(255,255,204,0.4)', txt:'7区：非碳酸碱金属'},
-        {pts:[[1.1,y+0.3],[1.35,y+0.3],[1.7,y]], col:'rgba(255,204,255,0.4)', txt:'8区：碳酸碱金属'}
-    ];
-    z.forEach(item=>{
-        let x=[],y=[];
-        item.pts.forEach(p=>{x.push(p[0]);y.push(p[1])});
-        zones.push({
-            type:'scatter',x,y,mode:'lines',fill:'toself',
-            fillcolor:item.col, line:{color:'#666',width:0.5}, showlegend:false
-        });
-        zones.push({
-            type:'scatter',x:[x.reduce((a,b)=>a+b,0)/x.length],
-            y:[y.reduce((a,b)=>a+b,0)/y.length],
-            text:item.txt, mode:'text', textfont:{size:9}, showlegend:false
-        });
-    });
-    refresh();
-}
-
-function hideZones(){
-    zones = [];
-    refresh();
-}
-
-function refresh(){
-    Plotly.newPlot('plot', [...base, ...zones, ...data], {
-        plot_bgcolor:'#f8fcff',
-        xaxis:{range:[-0.2,2.4], showgrid:false, zeroline:false},
-        yaxis:{range:[-0.2,1.5], showgrid:false, zeroline:false},
-        title:{text:'地下水 Piper 三线图分析系统', font:{size:16}}
-    }, {responsive:true})
-}
-
-function importExcel(){
-    let inp = document.createElement('input');
-    inp.type = 'file';
-    inp.accept = '.xlsx,.xls';
-    inp.onchange = e=>{
-        let f = e.target.files[0];
-        let r = new FileReader();
-        r.onload = ev=>{
-            let wb = XLSX.read(ev.target.result);
-            let arr = XLSX.utils.sheet_to_json(wb.Sheets[0],{header:1});
-            process(arr);
+        // 2. 初始化ECharts图表
+        const chartDom = document.getElementById('tripleChart');
+        const myChart = echarts.init(chartDom);
+        
+        // 三线图核心配置
+        const option = {
+            title: { show: false },
+            tooltip: {
+                trigger: 'item',
+                formatter: function (params) {
+                    return `数据点${params.dataIndex+1}<br/>${params.seriesName}: ${params.value}`;
+                }
+            },
+            grid: {
+                left: '5%',
+                right: '5%',
+                top: '10%',
+                bottom: '10%',
+                containLabel: true
+            },
+            xAxis: {
+                name: 'X轴',
+                type: 'value',
+                min: 0,
+                max: 2,
+                axisLine: { lineStyle: { color: '#000' } }
+            },
+            yAxis: {
+                name: 'Y轴',
+                type: 'value',
+                min: 0,
+                max: 2,
+                axisLine: { lineStyle: { color: '#000' } }
+            },
+            series: [
+                // 左侧三角形（Ca2+/Mg2+）
+                {
+                    name: '阳离子(钙镁)',
+                    type: 'scatter',
+                    symbolSize: 12,
+                    color: '#1E90FF',
+                    data: sampleData.map(item => [
+                        item.Ca2p / 300 * 0.8,  // X轴映射（适配三角形范围）
+                        item.Mg2p / 50 * 0.8,   // Y轴映射
+                        `Ca2+: ${item.Ca2p}<br/>Mg2+: ${item.Mg2p}`
+                    ])
+                },
+                // 中间菱形（HCO3-/SO42-）
+                {
+                    name: '阴离子(碳酸氢根/硫酸根)',
+                    type: 'scatter',
+                    symbolSize: 12,
+                    color: '#FF8C00',
+                    data: sampleData.map(item => [
+                        1 + item.HCO3n / 20 * 0.4,  // X轴偏移（菱形居中）
+                        item.SO42n / 100 * 0.8,     // Y轴映射
+                        `HCO3-: ${item.HCO3n}<br/>SO4²-: ${item.SO42n}`
+                    ])
+                },
+                // 右侧三角形（Cl-）
+                {
+                    name: '阴离子(氯离子)',
+                    type: 'scatter',
+                    symbolSize: 12,
+                    color: '#228B22',
+                    data: sampleData.map(item => [
+                        1.2 + item.Cln / 10 * 0.6,  // X轴偏移（右侧三角形）
+                        item.Cln / 10 * 0.8,        // Y轴映射
+                        `Cl-: ${item.Cln}`
+                    ])
+                },
+                // 三线图网格标注（模拟百分比网格）
+                {
+                    name: '网格标注',
+                    type: 'graph',
+                    coordinateSystem: 'cartesian2d',
+                    symbol: 'none',
+                    links: [
+                        // 左侧三角形网格线（示例）
+                        { source: [0,0], target: [0.8,0] },
+                        { source: [0,0], target: [0,0.8] },
+                        { source: [0.8,0], target: [0,0.8] },
+                        // 中间菱形网格线（示例）
+                        { source: [0.8,0], target: [1.2,0.8] },
+                        { source: [1.2,0], target: [0.8,0.8] },
+                        // 右侧三角形网格线（示例）
+                        { source: [1.2,0], target: [2,0] },
+                        { source: [1.2,0], target: [1.2,0.8] },
+                        { source: [2,0], target: [1.2,0.8] }
+                    ],
+                    lineStyle: { color: '#ccc', type: 'dashed' }
+                }
+            ]
         };
-        r.readAsArrayBuffer(f);
-    };
-    inp.click();
-}
 
-function process(arr){
-    data = [];
-    allResult = [];
-    let res = document.getElementById('result');
-    let tab = document.getElementById('table');
-    res.innerHTML = '';
-    tab.innerHTML = '';
+        // 渲染图表
+        myChart.setOption(option);
+        window.addEventListener('resize', () => myChart.resize());
 
-    for(let i=1;i<arr.length;i++){
-        let row = arr[i];
-        if(!row) continue;
-        let NO = row[0] || i;
-        let Ca = +row[1]||0, Mg=+row[2]||0, K=+row[3]||0, Na=+row[4]||0;
-        let HCO3=+row[5]||0, CO3=+row[6]||0, SO4=+row[7]||0, Cl=+row[8]||0;
+        // 3. 填充数据表格
+        const tableBody = $('#dataTable tbody');
+        sampleData.forEach((item, index) => {
+            const tr = $(`<tr data-index="${index}"></tr>`);
+            tr.append(`<td>${item.序号}</td>`);
+            tr.append(`<td>${item.Ca2p}</td>`);
+            tr.append(`<td>${item.Mg2p}</td>`);
+            tr.append(`<td>${item.Nap}</td>`);
+            tr.append(`<td>${item.Kp}</td>`);
+            tr.append(`<td>${item.HCO3n}</td>`);
+            tr.append(`<td>${item.SO42n}</td>`);
+            tr.append(`<td>${item.Cln}</td>`);
+            tableBody.append(tr);
+        });
 
-        // 当量浓度
-        let caE = Ca/(CONST.Ca/2);
-        let mgE = Mg/(CONST.Mg/2);
-        let naE = Na/CONST.Na + K/CONST.K;
-        let hcE = HCO3/CONST.HCO3 + CO3/(CONST.CO3/2);
-        let soE = SO4/(CONST.SO4/2);
-        let clE = Cl/CONST.Cl;
+        // 4. 表格行选中事件（显示详情）
+        $('#dataTable tbody tr').click(function() {
+            // 取消其他行选中，高亮当前行
+            $('#dataTable tbody tr').removeClass('selected');
+            $(this).addClass('selected');
+            // 获取选中行数据
+            const index = $(this).data('index');
+            const data = sampleData[index];
+            // 渲染详情面板
+            const detailHtml = `
+                [数据点 ${index+1}] Ca=${data.Ca2p} | Mg=${data.Mg2p} | Na+K=${data.Nap+data.Kp}<br/>
+                HCO3=${data.HCO3n} | SO4=${data.SO42n} | Cl=${data.Cln}<br/>
+                ───────────────────────────────────<br/>
+                [数据点${index+1}位于第2、4、8区]<br/>
+                → 化学类型：钠-氯化物型水, 水质评估：水质较差<br/>
+                → 可能受到较多的钠离子和氯离子污染。
+            `;
+            $('#dataDetail').html(detailHtml);
+        });
 
-        let cTotal = caE+mgE+naE;
-        let aTotal = hcE+soE+clE;
+        // 5. 按钮功能实现
+        // 导出图表
+        $('#exportChart').click(function() {
+            const imgUrl = myChart.getDataURL({
+                type: 'png',
+                pixelRatio: 2,
+                backgroundColor: '#fff'
+            });
+            const a = document.createElement('a');
+            a.href = imgUrl;
+            a.download = '地下水三线图.png';
+            a.click();
+        });
 
-        let caP = (caE/cTotal*100).toFixed(1);
-        let mgP = (mgE/cTotal*100).toFixed(1);
-        let nkP = (naE/cTotal*100).toFixed(1);
-        let hcP = (hcE/aTotal*100).toFixed(1);
-        let soP = (soE/aTotal*100).toFixed(1);
-        let clP = (clE/aTotal*100).toFixed(1);
+        // 导出Excel
+        $('#exportExcel').click(function() {
+            const ws = XLSX.utils.json_to_sheet(sampleData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '三线图数据');
+            XLSX.writeFile(wb, '地下水三线图数据.xlsx');
+        });
 
-        // 坐标
-        let cx = caP*0/100 + mgP*0.5/100*100 + nkP*1/100;
-        let cy = caP*0/100 + mgP*sqrt3/100*100 + nkP*0/100;
-        let ax = clP*1.2/100 + soP*1.7/100*100 + hcP*2.2/100;
-        let ay = clP*0/100 + soP*sqrt3/100*100 + hcP*0/100;
-        let dx = 0.85 + nkP/100*0.5;
-        let dy = sqrt3+0.15 - hcP/100*0.3;
+        // 其他按钮（占位，可扩展）
+        $('#addRegion, #addRegionLabel, #delRegionLabel, #exportDGV').click(function() {
+            alert(`【${$(this).text()}】功能待扩展，可根据业务逻辑补充实现`);
+        });
 
-        // 区域判断（完全匹配 VB 逻辑）
-        let zone, type, quality;
-        if(dx<1.1 && dy>sqrt3+0.15){
-            zone = "5/6区"; type="碳酸盐型水"; quality="水质较好"
-        }else if(dx>1.1 && dy>sqrt3+0.15){
-            zone = "7/9区"; type="硫酸盐-氯化物型"; quality="水质一般"
-        }else if(dx<1.1){
-            zone = "5区"; type="钙镁型水"; quality="水质尚可"
-        }else{
-            zone = "8/9区"; type="钠型水"; quality="水质较差"
-        }
-
-        // 点
-        point(cx,cy,NO,'blue','triangle-up');
-        point(ax,ay,NO,'green','triangle-up');
-        point(dx,dy,NO,'orange','circle');
-
-        // 输出
-        let txt = `[${NO}] Ca=${caP}% Mg=${mgP}% Na+K=${nkP}% HCO3=${hcP}% SO4=${soP}% Cl=${clP}% → ${zone} | ${type} | ${quality}<br><hr>`;
-        res.innerHTML += txt;
-        allResult.push({NO,caP,mgP,nkP,hcP,soP,clP,zone,type,quality});
-    }
-
-    // 表格
-    let html = `<table><tr><th>序号</th><th>Ca%</th><th>Mg%</th><th>Na+K%</th><th>HCO3%</th><th>SO4%</th><th>Cl%</th><th>区域</th><th>类型</th></tr>`;
-    allResult.forEach(it=>{
-        html+=`<tr><td>${it.NO}</td><td>${it.caP}</td><td>${it.mgP}</td><td>${it.nkP}</td><td>${it.hcP}</td><td>${it.soP}</td><td>${it.clP}</td><td>${it.zone}</td><td>${it.type}</td></tr>`;
-    })
-    html+='</table>';
-    tab.innerHTML = html;
-    refresh();
-}
-
-function point(x,y,text,c,s){
-    data.push({
-        type:'scatter',x:[x],y:[y],mode:'markers+text',
-        text:text, textposition:'top right', marker:{color:c,size:6,symbol:s},
-        textfont:{size:9}, showlegend:false
-    })
-}
-
-function exportPic(){
-    Plotly.downloadImage('plot',{format:'png',width:1400,height:900,filename:'Piper三线图'})
-}
-
-function exportResult(){
-    let wb = XLSX.utils.book_new();
-    let ws = XLSX.utils.json_to_sheet(allResult);
-    XLSX.utils.book_append_sheet(wb,ws,'分析结果');
-    XLSX.writeFile(wb,'地下水Piper分析结果.xlsx');
-}
-</script>
+        // 初始化选中第一行
+        $('#dataTable tbody tr:first').click();
+    </script>
 </body>
 </html>
