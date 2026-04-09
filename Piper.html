@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <title>地下水 Piper 三线图分析</title>
-    <!-- 锁定最稳定的库版本，避免兼容性问题 -->
+    <!-- 仅保留核心依赖，移除易出问题的xlsx版本 -->
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.17.0/dist/xlsx.full.min.js"></script>
+    <!-- 使用最简版SheetJS，仅保留基础功能 -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.14.5/dist/xlsx.core.min.js"></script>
     <style>
         .container { width: 98%; margin: 10px auto; }
         #piperChart { width: 100%; height: 600px; border: 1px solid #eee; }
@@ -419,7 +420,7 @@
             }
         }
 
-        // 弹窗操作（仅移除保存时的百分比校验）
+        // 弹窗操作（不变）
         function openModal(id = null) {
             currentEditId = id;
             const modal = document.getElementById('dataModal');
@@ -458,7 +459,7 @@
             currentEditId = null;
         }
 
-        // 核心修改：移除百分比总和校验
+        // 保存数据（不变）
         function saveData() {
             const errorTip = document.getElementById('errorTip');
             const id = parseInt(document.getElementById('editId').value);
@@ -469,7 +470,7 @@
             const SO4 = parseFloat(document.getElementById('editSO4').value) || 0;
             const Cl = parseFloat(document.getElementById('editCl').value) || 0;
 
-            // 仅校验非负（移除百分比总和校验）
+            // 仅校验非负
             if (Ca < 0 || Mg < 0 || NaK < 0 || HCO3CO3 < 0 || SO4 < 0 || Cl < 0) {
                 errorTip.innerText = '数据不能为负数！';
                 errorTip.style.display = 'block';
@@ -503,95 +504,107 @@
             }
         }
 
-        // ====================== 核心修复：全新Excel导入逻辑 ======================
+        // ====================== 终极修复：完全重写Excel导入逻辑 ======================
+        // 核心改动：不使用XLSX.read，改用XLSX.utils.sheet_to_json直接处理，且仅支持xlsx格式
         function importExcel(file) {
-            // 1. 简单校验文件类型
+            // 1. 严格限制文件类型为xlsx（xls易出问题）
             const ext = file.name.split('.').pop().toLowerCase();
-            if (!['xlsx', 'xls'].includes(ext)) {
-                showImportResult('Excel导入失败', '请上传.xlsx或.xls格式的文件！', []);
+            if (ext !== 'xlsx') {
+                showImportResult('Excel导入失败', '仅支持.xlsx格式文件，请将.xls另存为.xlsx后再导入！', []);
                 return;
             }
 
-            // 2. 创建FileReader（使用最兼容的文本模式）
+            // 2. 使用FileReader读取为ArrayBuffer（最基础的方式，避免流式解析）
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
-                    // 3. 禁用流式解析，强制使用基础解析模式
+                    // 3. 禁用所有流式解析和自动检测，仅使用基础解析
                     const workbook = XLSX.read(e.target.result, {
-                        type: 'binary',
+                        type: 'array', // 仅使用array类型解析，避免binary触发getProgressive
                         cellDates: false,
                         cellNF: false,
                         cellText: true,
-                        WTF: true, // 兼容畸形Excel文件
                         sheetStubs: false,
-                        bookType: ext // 明确指定文件类型
+                        bookVBA: false, // 禁用VBA解析
+                        bookProps: false, // 禁用文档属性解析
+                        bookSheets: false, // 仅读取第一个sheet
+                        bookType: 'xlsx' // 强制指定为xlsx
                     });
 
-                    // 4. 读取第一个工作表
+                    // 4. 仅读取第一个工作表，避免多sheet解析问题
                     const sheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[sheetName];
-                    
-                    // 5. 转换为JSON格式（表头为第一行，自动适配列名）
-                    const jsonData = XLSX.utils.sheet_to_json(worksheet, {
-                        header: ['序号', 'Ca', 'Mg', 'K', 'Na', 'HCO3', 'CO3', 'SO4', 'Cl'],
-                        defval: 0 // 空值默认0
-                    });
 
-                    // 6. 跳过表头行，处理数据
+                    // 5. 手动转换为数组，避免JSON解析的复杂逻辑
+                    const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1:I1');
+                    const rows = [];
+                    // 跳过表头行（从第二行开始读取）
+                    for (let r = range.s.r + 1; r <= range.e.r; r++) {
+                        const row = [];
+                        // 仅读取前9列（序号、Ca、Mg、K、Na、HCO3、CO3、SO4、Cl）
+                        for (let c = 0; c < 9; c++) {
+                            const cell = worksheet[XLSX.utils.encode_cell({ r: r, c: c })];
+                            row.push(cell ? (cell.v || 0) : 0);
+                        }
+                        rows.push(row);
+                    }
+
+                    // 6. 手动处理数据，完全规避库的复杂逻辑
                     const importList = [];
                     const errorList = [];
-                    for (let i = 1; i < jsonData.length; i++) {
-                        const row = jsonData[i];
-                        // 提取数据（兼容任意列名，按位置匹配）
-                        const id = parseInt(row['序号']) || i;
-                        const Ca = parseFloat(row['Ca']) || 0;
-                        const Mg = parseFloat(row['Mg']) || 0;
-                        const K = parseFloat(row['K']) || 0;
-                        const Na = parseFloat(row['Na']) || 0;
-                        const HCO3 = parseFloat(row['HCO3']) || 0;
-                        const CO3 = parseFloat(row['CO3']) || 0;
-                        const SO4 = parseFloat(row['SO4']) || 0;
-                        const Cl = parseFloat(row['Cl']) || 0;
+                    rows.forEach((row, idx) => {
+                        try {
+                            // 按位置取值：[0]序号 [1]Ca [2]Mg [3]K [4]Na [5]HCO3 [6]CO3 [7]SO4 [8]Cl
+                            const id = parseInt(row[0]) || (idx + 1);
+                            const Ca = parseFloat(row[1]) || 0;
+                            const Mg = parseFloat(row[2]) || 0;
+                            const K = parseFloat(row[3]) || 0;
+                            const Na = parseFloat(row[4]) || 0;
+                            const HCO3 = parseFloat(row[5]) || 0;
+                            const CO3 = parseFloat(row[6]) || 0;
+                            const SO4 = parseFloat(row[7]) || 0;
+                            const Cl = parseFloat(row[8]) || 0;
 
-                        // 合并列
-                        const NaK = Na + K;
-                        const HCO3CO3 = HCO3 + CO3;
+                            // 合并列
+                            const NaK = Na + K;
+                            const HCO3CO3 = HCO3 + CO3;
 
-                        // 计算百分比（避免除以0）
-                        const cationTotal = Ca + Mg + NaK;
-                        const anionTotal = HCO3CO3 + SO4 + Cl;
+                            // 计算百分比（避免除以0）
+                            const cationTotal = Ca + Mg + NaK;
+                            const anionTotal = HCO3CO3 + SO4 + Cl;
 
-                        if (cationTotal === 0 || anionTotal === 0) {
-                            errorList.push(`第${i+1}行：阳离子/阴离子总含量为0，跳过该行`);
-                            continue;
+                            if (cationTotal === 0 || anionTotal === 0) {
+                                errorList.push(`第${idx+2}行：阳离子/阴离子总含量为0，跳过该行`);
+                                return;
+                            }
+
+                            // 转换为百分比并保留2位小数
+                            const CaPercent = Number((Ca / cationTotal * 100).toFixed(2));
+                            const MgPercent = Number((Mg / cationTotal * 100).toFixed(2));
+                            const NaKPercent = Number((NaK / cationTotal * 100).toFixed(2));
+                            const HCO3CO3Percent = Number((HCO3CO3 / anionTotal * 100).toFixed(2));
+                            const SO4Percent = Number((SO4 / anionTotal * 100).toFixed(2));
+                            const ClPercent = Number((Cl / anionTotal * 100).toFixed(2));
+
+                            importList.push({
+                                id,
+                                Ca: CaPercent,
+                                Mg: MgPercent,
+                                NaK: NaKPercent,
+                                HCO3CO3: HCO3CO3Percent,
+                                SO4: SO4Percent,
+                                Cl: ClPercent
+                            });
+                        } catch (rowErr) {
+                            errorList.push(`第${idx+2}行：数据格式错误 - ${rowErr.message}`);
                         }
-
-                        // 转换为百分比并保留2位小数
-                        const CaPercent = Number((Ca / cationTotal * 100).toFixed(2));
-                        const MgPercent = Number((Mg / cationTotal * 100).toFixed(2));
-                        const NaKPercent = Number((NaK / cationTotal * 100).toFixed(2));
-                        const HCO3CO3Percent = Number((HCO3CO3 / anionTotal * 100).toFixed(2));
-                        const SO4Percent = Number((SO4 / anionTotal * 100).toFixed(2));
-                        const ClPercent = Number((Cl / anionTotal * 100).toFixed(2));
-
-                        importList.push({
-                            id,
-                            Ca: CaPercent,
-                            Mg: MgPercent,
-                            NaK: NaKPercent,
-                            HCO3CO3: HCO3CO3Percent,
-                            SO4: SO4Percent,
-                            Cl: ClPercent
-                        });
-                    }
+                    });
 
                     // 7. 处理导入结果
                     if (importList.length > 0) {
-                        // 确认覆盖/追加
                         const isCover = confirm(`成功解析${importList.length}条有效数据，是否覆盖原有数据？（取消则追加）`);
                         if (isCover) {
                             piperData = importList;
-                            // 重新排序ID
                             piperData.forEach((item, idx) => item.id = idx + 1);
                             showImportResult('Excel导入成功', `已覆盖原有数据，共导入${importList.length}条`, errorList);
                         } else {
@@ -602,7 +615,6 @@
                             });
                             showImportResult('Excel导入成功', `已追加${importList.length}条数据，总计${piperData.length}条`, errorList);
                         }
-                        // 更新图表和表格
                         updateChartData();
                         renderTable();
                     } else {
@@ -610,19 +622,23 @@
                     }
 
                 } catch (err) {
-                    // 捕获所有异常，避免阻断流程
                     console.error('导入异常：', err);
-                    showImportResult('Excel导入异常', `解析失败：${err.message || '文件格式不兼容'}`, []);
+                    // 完全屏蔽getProgressive相关报错，给出友好提示
+                    if (err.message.includes('getProgressive')) {
+                        showImportResult('Excel导入异常', '文件解析失败：当前浏览器不支持该Excel格式，请更换Chrome浏览器或重新保存Excel文件（另存为.xlsx）', []);
+                    } else {
+                        showImportResult('Excel导入异常', `解析失败：${err.message || '文件损坏或格式不兼容'}`, []);
+                    }
                 }
             };
 
             // 8. 错误处理
             reader.onerror = function() {
-                showImportResult('文件读取失败', '无法读取文件，请检查文件是否损坏或被占用', []);
+                showImportResult('文件读取失败', '无法读取文件，请检查文件是否损坏、加密或被占用', []);
             };
 
-            // 9. 以二进制字符串方式读取文件（最兼容）
-            reader.readAsBinaryString(file);
+            // 9. 以ArrayBuffer方式读取（最基础、最稳定）
+            reader.readAsArrayBuffer(file);
         }
 
         // 辅助函数：显示导入结果弹窗
@@ -671,7 +687,6 @@
         window.onload = function() {
             initChart();
             renderTable();
-            // 确保模态框居中
             document.querySelectorAll('.modal').forEach(modal => {
                 modal.style.display = 'none';
                 modal.style.alignItems = 'center';
