@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <title>地下水 Piper 三线图分析</title>
-    <!-- 替换为更稳定的库版本，避免兼容性问题 -->
-    <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
-    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
-    <script src="https://cdn.bootcdn.net/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- 锁定最稳定的库版本，避免兼容性问题 -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.17.0/dist/xlsx.full.min.js"></script>
     <style>
         .container { width: 98%; margin: 10px auto; }
         #piperChart { width: 100%; height: 600px; border: 1px solid #eee; }
@@ -503,102 +503,61 @@
             }
         }
 
-        // 核心修复：重构Excel导入逻辑，解决getProgressive报错
+        // ====================== 核心修复：全新Excel导入逻辑 ======================
         function importExcel(file) {
-            // 禁用文件选择器，避免重复上传
-            document.getElementById('excelFile').disabled = true;
-            
+            // 1. 简单校验文件类型
+            const ext = file.name.split('.').pop().toLowerCase();
+            if (!['xlsx', 'xls'].includes(ext)) {
+                showImportResult('Excel导入失败', '请上传.xlsx或.xls格式的文件！', []);
+                return;
+            }
+
+            // 2. 创建FileReader（使用最兼容的文本模式）
             const reader = new FileReader();
-            // 改用readAsBinaryString避免Uint8Array兼容性问题
-            reader.readAsBinaryString(file);
-            
             reader.onload = function(e) {
                 try {
-                    // 修复xlsx解析参数，避免getProgressive异常
-                    const workbook = XLSX.read(e.target.result, { 
+                    // 3. 禁用流式解析，强制使用基础解析模式
+                    const workbook = XLSX.read(e.target.result, {
                         type: 'binary',
                         cellDates: false,
+                        cellNF: false,
                         cellText: true,
-                        cellNF: false
+                        WTF: true, // 兼容畸形Excel文件
+                        sheetStubs: false,
+                        bookType: ext // 明确指定文件类型
                     });
-                    const firstSheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[firstSheetName];
+
+                    // 4. 读取第一个工作表
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
                     
-                    // 读取所有数据（二维数组格式，避免header匹配问题）
-                    const excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true });
+                    // 5. 转换为JSON格式（表头为第一行，自动适配列名）
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+                        header: ['序号', 'Ca', 'Mg', 'K', 'Na', 'HCO3', 'CO3', 'SO4', 'Cl'],
+                        defval: 0 // 空值默认0
+                    });
+
+                    // 6. 跳过表头行，处理数据
                     const importList = [];
                     const errorList = [];
-
-                    // 第一步：提取表头行（第0行），强化模糊匹配
-                    const headerRow = excelData[0] || [];
-                    const colMap = {
-                        id: -1,
-                        Ca: -1,
-                        Mg: -1,
-                        K: -1,
-                        Na: -1,
-                        HCO3: -1,
-                        CO3: -1,
-                        SO4: -1,
-                        Cl: -1
-                    };
-
-                    // 强化模糊匹配：兼容更多列名写法
-                    headerRow.forEach((colName, idx) => {
-                        if (typeof colName !== 'string') return;
-                        const name = colName.toLowerCase()
-                            .replace(/[\u4e00-\u9fa5]/g, '') // 移除中文
-                            .replace(/[^a-z0-9]/g, '') // 移除特殊符号
-                            .replace(/plus|\+/g, '') // 移除+号相关
-                            .replace(/2/g, '') // 移除数字2
-                            .trim();
-                        
-                        if (name.includes('xuhao') || name.includes('id') || name.includes('xh')) colMap.id = idx;
-                        if (name.includes('ca') || name.includes('gai')) colMap.Ca = idx;
-                        if (name.includes('mg') || name.includes('mei')) colMap.Mg = idx;
-                        if (name.includes('k') || name.includes('jia')) colMap.K = idx;
-                        if (name.includes('na') || name.includes('na')) colMap.Na = idx;
-                        if (name.includes('hco3') || name.includes('tanqinggensu')) colMap.HCO3 = idx;
-                        if (name.includes('co3') || name.includes('tansuangen')) colMap.CO3 = idx;
-                        if (name.includes('so4') || name.includes('liusuangen')) colMap.SO4 = idx;
-                        if (name.includes('cl') || name.includes('lü')) colMap.Cl = idx;
-                    });
-
-                    // 校验必须的列是否存在
-                    const requiredCols = ['Ca', 'Mg', 'K', 'Na', 'HCO3', 'CO3', 'SO4', 'Cl'];
-                    const missingCols = requiredCols.filter(col => colMap[col] === -1);
-                    if (missingCols.length > 0) {
-                        errorList.push(`缺少必要列：${missingCols.join(', ')}，请检查Excel列名`);
-                        throw new Error(`列名匹配失败：缺少${missingCols.join(', ')}列`);
-                    }
-
-                    // 第二步：处理数据行（从第1行开始）
-                    for (let i = 1; i < excelData.length; i++) {
-                        const row = excelData[i];
-                        if (!row || row.length === 0) continue; // 跳过空行
-
-                        // 安全取值：避免行长度不足导致undefined
-                        const getCellValue = (colIdx) => {
-                            if (row.length <= colIdx || row[colIdx] === undefined || row[colIdx] === null) return 0;
-                            return parseFloat(row[colIdx]) || 0;
-                        };
-
-                        // 提取数据（安全取值）
-                        const id = colMap.id !== -1 ? (parseInt(getCellValue(colMap.id)) || (i)) : i;
-                        const Ca = getCellValue(colMap.Ca);
-                        const Mg = getCellValue(colMap.Mg);
-                        const K = getCellValue(colMap.K);
-                        const Na = getCellValue(colMap.Na);
-                        const HCO3 = getCellValue(colMap.HCO3);
-                        const CO3 = getCellValue(colMap.CO3);
-                        const SO4 = getCellValue(colMap.SO4);
-                        const Cl = getCellValue(colMap.Cl);
+                    for (let i = 1; i < jsonData.length; i++) {
+                        const row = jsonData[i];
+                        // 提取数据（兼容任意列名，按位置匹配）
+                        const id = parseInt(row['序号']) || i;
+                        const Ca = parseFloat(row['Ca']) || 0;
+                        const Mg = parseFloat(row['Mg']) || 0;
+                        const K = parseFloat(row['K']) || 0;
+                        const Na = parseFloat(row['Na']) || 0;
+                        const HCO3 = parseFloat(row['HCO3']) || 0;
+                        const CO3 = parseFloat(row['CO3']) || 0;
+                        const SO4 = parseFloat(row['SO4']) || 0;
+                        const Cl = parseFloat(row['Cl']) || 0;
 
                         // 合并列
                         const NaK = Na + K;
                         const HCO3CO3 = HCO3 + CO3;
 
-                        // 计算总和（避免除以0）
+                        // 计算百分比（避免除以0）
                         const cationTotal = Ca + Mg + NaK;
                         const anionTotal = HCO3CO3 + SO4 + Cl;
 
@@ -607,7 +566,7 @@
                             continue;
                         }
 
-                        // 强制转换为百分比（保留2位小数）
+                        // 转换为百分比并保留2位小数
                         const CaPercent = Number((Ca / cationTotal * 100).toFixed(2));
                         const MgPercent = Number((Mg / cationTotal * 100).toFixed(2));
                         const NaKPercent = Number((NaK / cationTotal * 100).toFixed(2));
@@ -626,73 +585,54 @@
                         });
                     }
 
-                    // 处理导入结果（异步弹窗避免阻塞）
-                    setTimeout(() => {
-                        const importTitle = document.getElementById('importTitle');
-                        const importMsg = document.getElementById('importMsg');
-                        const importErrorList = document.getElementById('importErrorList');
-
-                        if (importList.length > 0) {
-                            // 修复确认弹窗干扰问题
-                            try {
-                                const isCover = confirm(`成功解析${importList.length}条有效数据（原始含量→百分比转换完成），是否覆盖原有数据？（取消则追加）`);
-                                if (isCover) {
-                                    piperData = importList;
-                                    piperData.forEach((item, idx) => { item.id = idx + 1; });
-                                    importTitle.innerText = 'Excel导入成功';
-                                    importMsg.innerText = `已覆盖原有数据，共导入${importList.length}条有效数据`;
-                                } else {
-                                    const maxId = piperData.length > 0 ? Math.max(...piperData.map(item => item.id)) : 0;
-                                    importList.forEach((item, idx) => {
-                                        item.id = maxId + idx + 1;
-                                        piperData.push(item);
-                                    });
-                                    importTitle.innerText = 'Excel导入成功';
-                                    importMsg.innerText = `已追加${importList.length}条有效数据，当前总数据量：${piperData.length}条`;
-                                }
-                                updateChartData();
-                                renderTable();
-                            } catch (e) {
-                                errorList.push('确认弹窗操作异常，已默认追加数据');
-                                const maxId = piperData.length > 0 ? Math.max(...piperData.map(item => item.id)) : 0;
-                                importList.forEach((item, idx) => {
-                                    item.id = maxId + idx + 1;
-                                    piperData.push(item);
-                                });
-                            }
+                    // 7. 处理导入结果
+                    if (importList.length > 0) {
+                        // 确认覆盖/追加
+                        const isCover = confirm(`成功解析${importList.length}条有效数据，是否覆盖原有数据？（取消则追加）`);
+                        if (isCover) {
+                            piperData = importList;
+                            // 重新排序ID
+                            piperData.forEach((item, idx) => item.id = idx + 1);
+                            showImportResult('Excel导入成功', `已覆盖原有数据，共导入${importList.length}条`, errorList);
                         } else {
-                            importTitle.innerText = 'Excel导入失败';
-                            importMsg.innerText = '未解析到有效数据，请检查Excel数据！';
+                            const maxId = piperData.length > 0 ? Math.max(...piperData.map(item => item.id)) : 0;
+                            importList.forEach((item, idx) => {
+                                item.id = maxId + idx + 1;
+                                piperData.push(item);
+                            });
+                            showImportResult('Excel导入成功', `已追加${importList.length}条数据，总计${piperData.length}条`, errorList);
                         }
-
-                        // 显示错误信息
-                        importErrorList.innerHTML = errorList.length > 0 
-                            ? errorList.map(err => `<li>${err}</li>`).join('') 
-                            : '';
-
-                        document.getElementById('importModal').style.display = 'block';
-                    }, 100);
+                        // 更新图表和表格
+                        updateChartData();
+                        renderTable();
+                    } else {
+                        showImportResult('Excel导入失败', '未解析到有效数据，请检查Excel内容！', errorList);
+                    }
 
                 } catch (err) {
-                    console.error('Excel解析失败：', err);
-                    document.getElementById('importTitle').innerText = 'Excel导入异常';
-                    document.getElementById('importMsg').innerText = `解析失败：${err.message || '未知错误'}`;
-                    document.getElementById('importErrorList').innerHTML = '';
-                    document.getElementById('importModal').style.display = 'block';
-                } finally {
-                    // 恢复文件选择器
-                    document.getElementById('excelFile').disabled = false;
+                    // 捕获所有异常，避免阻断流程
+                    console.error('导入异常：', err);
+                    showImportResult('Excel导入异常', `解析失败：${err.message || '文件格式不兼容'}`, []);
                 }
             };
 
-            // 捕获读取错误
-            reader.onerror = function(err) {
-                console.error('文件读取失败：', err);
-                document.getElementById('importTitle').innerText = '文件读取失败';
-                document.getElementById('importMsg').innerText = '无法读取文件，请检查文件是否损坏';
-                document.getElementById('importModal').style.display = 'block';
-                document.getElementById('excelFile').disabled = false;
+            // 8. 错误处理
+            reader.onerror = function() {
+                showImportResult('文件读取失败', '无法读取文件，请检查文件是否损坏或被占用', []);
             };
+
+            // 9. 以二进制字符串方式读取文件（最兼容）
+            reader.readAsBinaryString(file);
+        }
+
+        // 辅助函数：显示导入结果弹窗
+        function showImportResult(title, msg, errors) {
+            document.getElementById('importTitle').innerText = title;
+            document.getElementById('importMsg').innerText = msg;
+            document.getElementById('importErrorList').innerHTML = errors.length > 0 
+                ? errors.map(e => `<li>${e}</li>`).join('') 
+                : '';
+            document.getElementById('importModal').style.display = 'block';
         }
 
         function closeImportModal() {
@@ -700,21 +640,11 @@
             document.getElementById('excelFile').value = '';
         }
 
-        // 按钮绑定（优化文件选择逻辑）
+        // 按钮绑定
         document.getElementById('addRegion').addEventListener('click', () => openModal());
         document.getElementById('excelFile').addEventListener('change', function(e) {
             const file = e.target.files[0];
-            if (!file) return;
-            
-            const ext = file.name.split('.').pop().toLowerCase();
-            if (ext !== 'xlsx' && ext !== 'xls') {
-                alert('请上传.xlsx或.xls格式的Excel文件！');
-                this.value = '';
-                return;
-            }
-            
-            // 延迟执行，避免浏览器渲染阻塞
-            setTimeout(() => importExcel(file), 50);
+            if (file) importExcel(file);
         });
         document.getElementById('addRegionLabel').addEventListener('click', () => {
             alert('【添加分区标注】功能：可扩展实现菱形分区（如5/6/7/8/9区）的颜色标注，如需实现可补充annotation配置');
@@ -741,8 +671,9 @@
         window.onload = function() {
             initChart();
             renderTable();
-            // 修复模态框样式
+            // 确保模态框居中
             document.querySelectorAll('.modal').forEach(modal => {
+                modal.style.display = 'none';
                 modal.style.alignItems = 'center';
                 modal.style.justifyContent = 'center';
             });
