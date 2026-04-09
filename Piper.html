@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>地下水 Piper 三线图分析</title>
-    <!-- 仅保留ECharts和jQuery，完全移除SheetJS依赖 -->
+    <!-- 仅保留 ECharts 和 jQuery，完全无 SheetJS 依赖 -->
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
     <style>
@@ -100,14 +100,12 @@
             <button id="addRegion" class="common-btn">添加分区数据</button>
             <div class="import-btn-wrap">
                 <button class="common-btn">导入CSV数据</button>
-                <!-- 仅保留CSV导入，完全移除Excel相关 -->
                 <input type="file" id="csvFile" accept=".csv">
             </div>
             <button id="addRegionLabel" class="common-btn">添加分区标注</button>
             <button id="delRegionLabel" class="common-btn">删除分区标注</button>
             <button id="exportChart" class="common-btn">导出三线图</button>
             <button id="exportDGV" class="common-btn">输出到DGV</button>
-            <!-- 移除Excel导出，改为CSV导出（零依赖） -->
             <button id="exportCSV" class="common-btn">输出到CSV</button>
         </div>
         <table id="dataTable">
@@ -160,6 +158,7 @@
     </div>
 
     <script>
+        // 初始数据（使用你提供的10条真实数据，直接预加载）
         let piperData = [
             { id: 1, Ca: 10.28, Mg: 6.05, NaK: 83.67, HCO3CO3: 14.08, SO4: 79.27, Cl: 6.65 },
             { id: 2, Ca: 20.15, Mg: 12.30, NaK: 67.55, HCO3CO3: 18.25, SO4: 72.10, Cl: 9.65 },
@@ -474,7 +473,6 @@
             const SO4 = parseFloat(document.getElementById('editSO4').value) || 0;
             const Cl = parseFloat(document.getElementById('editCl').value) || 0;
 
-            // 仅校验非负
             if (Ca < 0 || Mg < 0 || NaK < 0 || HCO3CO3 < 0 || SO4 < 0 || Cl < 0) {
                 errorTip.innerText = '数据不能为负数！';
                 errorTip.style.display = 'block';
@@ -508,22 +506,24 @@
             }
         }
 
-        // ====================== 纯手动CSV解析（零依赖，完全无SheetJS） ======================
+        // ====================== 100% 纯原生 CSV 解析（无任何第三方依赖） ======================
         function importCSV(file) {
-            // 严格校验文件类型
-            const ext = file.name.split('.').pop().toLowerCase();
-            if (ext !== 'csv') {
-                showImportResult('导入失败', '仅支持.csv格式文件！请将Excel另存为CSV(逗号分隔)格式后再导入', []);
+            // 第一步：严格校验文件类型
+            const fileName = file.name.toLowerCase();
+            if (!fileName.endsWith('.csv')) {
+                showImportResult('导入失败', '仅支持 .csv 格式文件！', []);
                 return;
             }
 
+            // 第二步：创建 FileReader，完全用原生 JS 读取
             const reader = new FileReader();
-            // 完全包裹在try-catch中，彻底避免未捕获异常
+            
+            // 第三步：完全包裹在 try-catch 中，彻底杜绝未捕获异常
             reader.onload = function(e) {
                 try {
                     const text = e.target.result;
-                    // 兼容所有换行符，过滤空行
-                    const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+                    // 兼容所有换行符（\r\n、\n、\r），过滤空行
+                    const lines = text.split(/\r?\n|\r/).filter(line => line.trim() !== '');
                     
                     if (lines.length < 2) {
                         showImportResult('CSV导入失败', 'CSV文件无有效数据（至少需要表头+1行数据）！', []);
@@ -533,13 +533,13 @@
                     const importList = [];
                     const errorList = [];
 
-                    // 从第2行开始处理数据（跳过表头）
+                    // 第四步：从第2行开始处理数据（跳过表头）
                     for (let i = 1; i < lines.length; i++) {
                         try {
-                            // 手动解析CSV行，处理带引号、逗号转义
+                            // 手动解析 CSV 行，处理带引号、逗号转义
                             const row = parseCSVLine(lines[i]);
                             
-                            // 严格按列位置取值（对应你的Excel列：序号、Ca²+、Mg²+、K+、Na+、HCO3-、CO3²-、SO4²-、Cl-、矿化度）
+                            // 严格按列位置取值（对应你的 Excel 列：序号、Ca²+、Mg²+、K+、Na+、HCO3-、CO3²-、SO4²-、Cl-）
                             // 仅取前9列有效数据，跳过矿化度列
                             const id = parseInt(row[0]) || (i);
                             const Ca = parseFloat(row[1]) || 0;
@@ -551,7 +551,7 @@
                             const SO4 = parseFloat(row[7]) || 0;
                             const Cl = parseFloat(row[8]) || 0;
 
-                            // 合并Na+K、HCO3+CO3
+                            // 合并 Na+K、HCO3+CO3
                             const NaK = Na + K;
                             const HCO3CO3 = HCO3 + CO3;
 
@@ -586,7 +586,7 @@
                         }
                     }
 
-                    // 处理导入结果
+                    // 第五步：处理导入结果
                     if (importList.length > 0) {
                         const isCover = confirm(`成功解析${importList.length}条有效数据，是否覆盖原有数据？（取消则追加）`);
                         if (isCover) {
@@ -611,7 +611,7 @@
 
                 } catch (globalErr) {
                     console.error('CSV全局解析异常：', globalErr);
-                    // 完全屏蔽getProgressive错误，给出明确解决方案
+                    // 完全屏蔽 getProgressive 错误，给出明确解决方案
                     showImportResult('CSV导入异常', `解析失败：${globalErr.message || '未知错误'}<br/>请检查CSV文件是否为【逗号分隔】，无合并单元格、无特殊格式`, []);
                 }
             };
@@ -620,11 +620,11 @@
                 showImportResult('CSV读取失败', '无法读取文件，请检查文件是否损坏、加密或被占用', []);
             };
 
-            // 以UTF-8编码读取，避免乱码
+            // 以 UTF-8 编码读取，避免乱码
             reader.readAsText(file, 'UTF-8');
         }
 
-        // 增强版CSV行解析（处理带引号、逗号转义、空格）
+        // 增强版 CSV 行解析（处理带引号、逗号转义、空格）
         function parseCSVLine(line) {
             const result = [];
             let current = '';
@@ -653,7 +653,7 @@
             return result;
         }
 
-        // 零依赖CSV导出（替代原Excel导出）
+        // 零依赖 CSV 导出（替代原 Excel 导出）
         function exportCSV() {
             // 表头
             const headers = ['序号,Ca²+(%),Mg²+(%),Na++K+(%),HCO₃⁻+CO₃²⁻(%),SO₄²⁻(%),Cl⁻(%)'];
@@ -661,7 +661,7 @@
             const rows = piperData.map(item => {
                 return `${item.id},${item.Ca.toFixed(2)},${item.Mg.toFixed(2)},${item.NaK.toFixed(2)},${item.HCO3CO3.toFixed(2)},${item.SO4.toFixed(2)},${item.Cl.toFixed(2)}`;
             });
-            // 合并CSV内容
+            // 合并 CSV 内容
             const csvContent = [headers, ...rows].join('\n');
             // 创建下载
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -689,11 +689,11 @@
             document.getElementById('csvFile').value = '';
         }
 
-        // 按钮绑定
+        // 按钮绑定（完全无 SheetJS 相关代码）
         document.getElementById('addRegion').addEventListener('click', () => openModal());
         document.getElementById('csvFile').addEventListener('change', function(e) {
             const file = e.target.files[0];
-            if (file) importCSV(file); // 仅调用纯CSV解析
+            if (file) importCSV(file);
         });
         document.getElementById('addRegionLabel').addEventListener('click', () => {
             alert('【添加分区标注】功能：可扩展实现菱形分区（如5/6/7/8/9区）的颜色标注，如需实现可补充annotation配置');
@@ -709,7 +709,6 @@
         document.getElementById('exportDGV').addEventListener('click', () => {
             alert('【输出到DGV】功能：可扩展导出数据到DataGridView（需结合后端语言如C#实现）');
         });
-        // 绑定CSV导出按钮
         document.getElementById('exportCSV').addEventListener('click', exportCSV);
 
         // 初始化
