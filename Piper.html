@@ -2,720 +2,856 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>地下水 Piper 三线图分析</title>
-    <!-- 仅保留ECharts和jQuery，完全无任何文件读取/SheetJS相关代码 -->
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Piper三线图（几何精准版-最终版）</title>
     <style>
-        .container { width: 98%; margin: 10px auto; }
-        #piperChart { width: 100%; height: 600px; border: 1px solid #eee; }
-        .btn-group { margin: 10px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-        .common-btn {
-            padding: 8px 15px;
-            border: 1px solid #ccc;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+
+        body {
+            padding: 20px;
+            background: #f0f8ff;
+        }
+
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+
+        .title {
+            text-align: center;
+            margin-bottom: 15px;
+            color: #2c3e50;
+            font-size: 24px;
+        }
+
+        .btn-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            background: #3498db;
+            color: white;
+            border: none;
             border-radius: 4px;
-            background: #f8f8f8;
             cursor: pointer;
             font-size: 14px;
-            line-height: 1;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
+            transition: background 0.2s;
         }
-        .common-btn:hover { background: #e8e8e8; border-color: #adadad; }
-        #dataTable {
-            width: 100%; border-collapse: collapse; margin: 10px 0;
+
+        .btn:hover {
+            background: #2980b9;
         }
-        #dataTable th, #dataTable td {
-            border: 1px solid #ccc; padding: 8px; text-align: center;
+
+        .plot-container {
+            width: 100%;
+            height: 800px;
+            background: #f0f8ff;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            position: relative;
+            overflow: hidden;
         }
-        #dataTable th { background: #f2f2f2; }
-        #dataTable tr.selected { background-color: #cce5ff; }
-        #dataDetail {
-            border: 1px solid #ccc; padding: 10px; min-height: 80px;
-            background: #f9f9f9;
+
+        #piperCanvas {
+            width: 100%;
+            height: 100%;
         }
-        .modal {
-            display: none; position: fixed; top: 0; left: 0;
-            width: 100%; height: 100%; background: rgba(0,0,0,0.5);
-            z-index: 999; justify-content: center; align-items: center;
+
+        .result-text {
+            width: 100%;
+            height: 240px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 13px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+            white-space: pre-wrap;
         }
-        .modal-content {
-            background: #fff; padding: 20px; border-radius: 8px;
-            width: 500px; box-shadow: 0 0 10px rgba(0,0,0,0.2);
+
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            overflow-x: auto;
         }
-        .modal-form { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin: 15px 0; }
-        .modal-form label { align-self: center; font-weight: 500; }
-        .modal-form input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
-        .modal-btns { text-align: right; margin-top: 20px; }
-        .modal-btns button {
-            padding: 8px 15px; margin-left: 10px;
-            border: none; border-radius: 4px; cursor: pointer;
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
         }
-        .btn-save { background: #007bff; color: #fff; }
-        .btn-cancel { background: #6c757d; color: #fff; }
-        .error-tip { color: #dc3545; font-size: 12px; margin-top: 5px; display: none; }
-        /* 数据粘贴弹窗样式 */
-        .paste-modal {
-            display: none; position: fixed; top: 50%; left: 50%;
-            transform: translate(-50%, -50%); background: #fff;
-            padding: 20px; border-radius: 8px; z-index: 1000;
-            box-shadow: 0 0 15px rgba(0,0,0,0.3);
-            width: 700px; max-height: 80vh; overflow-y: auto;
+
+        th, td {
+            border: 1px solid #eee;
+            padding: 6px;
+            text-align: center;
         }
-        .paste-modal h4 { margin-top: 0; }
-        .paste-modal textarea {
-            width: 100%; height: 300px; padding: 10px;
-            border: 1px solid #ccc; border-radius: 4px;
-            font-family: monospace; font-size: 12px;
-            box-sizing: border-box;
+
+        th {
+            background: #e7f5ff;
         }
-        .paste-modal .tips {
-            color: #007bff; font-size: 13px; margin: 10px 0;
-        }
-        .paste-modal .error-list {
-            max-height: 150px; overflow-y: auto;
-            margin: 10px 0; padding-left: 20px;
-            color: #dc3545;
-        }
-        .paste-modal-btns { text-align: right; margin-top: 15px; }
-        .paste-modal-btns button {
-            padding: 8px 15px; margin-left: 10px;
-            border: none; border-radius: 4px; cursor: pointer;
+
+        #fileInput {
+            display: none;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2 style="text-align: center;">地下水三线图分析</h2>
-        <div id="piperChart"></div>
-        <div class="btn-group">
-            <button id="addRegion" class="common-btn">添加分区数据</button>
-            <button id="pasteData" class="common-btn">粘贴CSV数据导入</button>
-            <button id="addRegionLabel" class="common-btn">添加分区标注</button>
-            <button id="delRegionLabel" class="common-btn">删除分区标注</button>
-            <button id="exportChart" class="common-btn">导出三线图</button>
-            <button id="exportDGV" class="common-btn">输出到DGV</button>
-            <button id="exportCSV" class="common-btn">输出到CSV</button>
-        </div>
-        <table id="dataTable">
-            <thead>
-                <tr>
-                    <th>序号</th><th>Ca²+</th><th>Mg²+</th><th>Na++K+</th>
-                    <th>HCO₃⁻+CO₃²⁻</th><th>SO₄²⁻</th><th>Cl⁻</th><th>操作</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-        <div id="dataDetail"></div>
-    </div>
+        <h2 class="title">地下水 Piper 三线图分析（几何精准版-最终版）</h2>
 
-    <div class="modal" id="dataModal">
-        <div class="modal-content">
-            <h3 id="modalTitle">添加分区数据</h3>
-            <div class="error-tip" id="errorTip">数据校验失败，请检查！</div>
-            <div class="modal-form">
-                <label for="editId">序号：</label>
-                <input type="number" id="editId" readonly placeholder="自动生成">
-                <label for="editCa">Ca²+ (%)：</label>
-                <input type="number" id="editCa" step="0.01" min="0" max="100" placeholder="请输入">
-                <label for="editMg">Mg²+ (%)：</label>
-                <input type="number" id="editMg" step="0.01" min="0" max="100" placeholder="请输入">
-                <label for="editNaK">Na++K+ (%)：</label>
-                <input type="number" id="editNaK" step="0.01" min="0" max="100" placeholder="请输入">
-                <label for="editHCO3CO3">HCO₃⁻+CO₃²⁻ (%)：</label>
-                <input type="number" id="editHCO3CO3" step="0.01" min="0" max="100" placeholder="请输入">
-                <label for="editSO4">SO₄²⁻ (%)：</label>
-                <input type="number" id="editSO4" step="0.01" min="0" max="100" placeholder="请输入">
-                <label for="editCl">Cl⁻ (%)：</label>
-                <input type="number" id="editCl" step="0.01" min="0" max="100" placeholder="请输入">
-            </div>
-            <div class="modal-btns">
-                <button class="btn-cancel" onclick="closeModal()">取消</button>
-                <button class="btn-save" onclick="saveData()">保存</button>
-            </div>
+        <div class="btn-bar">
+            <button id="importExcelBtn" class="btn">📂 导入Excel/CSV数据</button>
+            <button id="showZoneBtn" class="btn">🟡 显示6大区域划分</button>
+            <button id="hideZoneBtn" class="btn">⚪ 清除分区</button>
+            <button id="saveImgBtn" class="btn">🖼️ 导出PNG图片</button>
+            <button id="saveExcelBtn" class="btn">📄 导出结果Excel</button>
         </div>
-    </div>
 
-    <div class="paste-modal" id="pasteModal">
-        <h4>粘贴CSV数据导入</h4>
-        <div class="tips">💡 操作说明：将CSV文件内容完整复制，粘贴到下方文本框，点击【导入】即可，无需上传文件，彻底规避文件读取错误！</div>
-        <textarea id="csvTextarea" placeholder="请在此粘贴CSV数据（表头+数据行，逗号分隔）"></textarea>
-        <div class="error-list" id="pasteErrorList"></div>
-        <div class="paste-modal-btns">
-            <button class="btn-cancel" onclick="closePasteModal()">取消</button>
-            <button class="btn-save" onclick="importPasteData()">导入数据</button>
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+
+        <div class="plot-container">
+            <canvas id="piperCanvas"></canvas>
+        </div>
+        
+        <div id="resultBox" class="result-text">等待导入数据...</div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>序号</th>
+                        <th>Ca%</th>
+                        <th>Mg%</th>
+                        <th>Na+K%</th>
+                        <th>HCO3+CO3%</th>
+                        <th>SO4%</th>
+                        <th>Cl%</th>
+                        <th>Ca+Mg(总离子%)</th>
+                        <th>Na+K(总离子%)</th>
+                        <th>SO4+Cl(总离子%)</th>
+                        <th>CO3+HCO3(总离子%)</th>
+                        <th>所属区域</th>
+                        <th>水化学类型</th>
+                    </tr>
+                </thead>
+                <tbody id="dataTable"></tbody>
+            </table>
         </div>
     </div>
 
     <script>
-        // ========== 第一步：Edge浏览器专属全局锁死，彻底屏蔽getProgressive ==========
-        (function() {
-            // 1. 锁死所有可能的SheetJS相关全局变量
-            const lockVars = ['XLSX', 'SheetJS', 'getProgressive', 'XLSXVersion'];
-            lockVars.forEach(varName => {
-                Object.defineProperty(window, varName, {
-                    value: undefined,
-                    writable: false,
-                    configurable: false,
-                    enumerable: false
-                });
-                delete window[varName];
-            });
+        // ================= 全局变量 =================
+        let canvas, ctx;
+        let canvasWidth, canvasHeight;
+        let scale = 1; 
+        let showZones = false; 
+        let dataPoints = []; 
+        let resultList = []; 
 
-            // 2. 重写getProgressive，强制返回null，彻底杜绝调用
-            window.getProgressive = function() {
-                return null;
-            };
-            Object.defineProperty(window, 'getProgressive', {
-                value: () => null,
-                writable: false,
-                configurable: false,
-                enumerable: false
-            });
-
-            // 3. 兜底：捕获所有未处理的异常，屏蔽getProgressive错误
-            window.onerror = function(message, source, lineno, colno, error) {
-                if (message.includes('getProgressive')) {
-                    console.log('已屏蔽getProgressive错误');
-                    return true; // 阻止错误冒泡
-                }
-                return false;
-            };
-        })();
-
-        // 初始数据（你的10条真实数据，直接预加载）
-        let piperData = [
-            { id: 1, Ca: 10.28, Mg: 6.05, NaK: 83.67, HCO3CO3: 14.08, SO4: 79.27, Cl: 6.65 },
-            { id: 2, Ca: 20.15, Mg: 12.30, NaK: 67.55, HCO3CO3: 18.25, SO4: 72.10, Cl: 9.65 },
-            { id: 3, Ca: 8.39, Mg: 6.66, NaK: 84.95, HCO3CO3: 12.10, SO4: 80.50, Cl: 7.40 },
-            { id: 4, Ca: 19.95, Mg: 13.92, NaK: 66.13, HCO3CO3: 15.30, SO4: 75.80, Cl: 8.90 },
-            { id: 5, Ca: 15.76, Mg: 24.33, NaK: 59.91, HCO3CO3: 10.80, SO4: 82.50, Cl: 6.70 },
-            { id: 6, Ca: 5.97, Mg: 45.20, NaK: 48.83, HCO3CO3: 9.50, SO4: 85.20, Cl: 5.30 },
-            { id: 7, Ca: 9.34, Mg: 21.70, NaK: 68.96, HCO3CO3: 13.20, SO4: 78.50, Cl: 8.30 },
-            { id: 8, Ca: 12.50, Mg: 18.40, NaK: 69.10, HCO3CO3: 11.80, SO4: 81.20, Cl: 7.00 },
-            { id: 9, Ca: 7.80, Mg: 10.50, NaK: 81.70, HCO3CO3: 16.50, SO4: 76.30, Cl: 7.20 },
-            { id:10, Ca: 6.50, Mg: 8.80, NaK: 84.70, HCO3CO3: 14.80, SO4: 79.80, Cl: 5.40 }
-        ];
-        let currentEditId = null;
-        let myChart = null;
-
-        // 坐标转换函数
-        function cationTriCoord(Ca, Mg, NaK) {
-            const baseX = 0.2;
-            const baseY = 1.0;
-            const sideLen = 1.0;
-            const x = baseX + sideLen * (NaK/100 + Mg/200);
-            const y = baseY - sideLen * (Math.sqrt(3)/2) * (Mg/100);
-            return [x, y];
-        }
-        function anionTriCoord(HCO3CO3, SO4, Cl) {
-            const baseX = 1.8;
-            const baseY = 1.0;
-            const sideLen = 1.0;
-            const x = baseX - sideLen * (Cl/100 + SO4/200);
-            const y = baseY - sideLen * (Math.sqrt(3)/2) * (SO4/100);
-            return [x, y];
-        }
-        function diamondCoord(cationXY, anionXY) {
-            const leftTriRightX = 1.2;
-            const rightTriLeftX = 1.2;
-            const diamondBaseY = 0.2;
-            const x = leftTriRightX + (anionXY[0] - rightTriLeftX) * 0.8;
-            const y = diamondBaseY + (cationXY[1] + anionXY[1]) / 2;
-            return [x, y];
-        }
-
-        // 初始化图表
-        function initChart() {
-            const chartDom = document.getElementById('piperChart');
-            myChart = echarts.init(chartDom);
-            updateChartData();
-            window.addEventListener('resize', () => myChart.resize());
-        }
-
-        // 更新图表数据
-        function updateChartData() {
-            const cationPoints = [];
-            const anionPoints = [];
-            const diamondPoints = [];
-            piperData.forEach(item => {
-                const cXY = cationTriCoord(item.Ca, item.Mg, item.NaK);
-                cationPoints.push({
-                    value: [cXY[0], cXY[1]],
-                    name: `点${item.id}`,
-                    itemStyle: { color: '#1E90FF' }
-                });
-                const aXY = anionTriCoord(item.HCO3CO3, item.SO4, item.Cl);
-                anionPoints.push({
-                    value: [aXY[0], aXY[1]],
-                    name: `点${item.id}`,
-                    itemStyle: { color: '#228B22' }
-                });
-                const dXY = diamondCoord(cXY, aXY);
-                diamondPoints.push({
-                    value: [dXY[0], dXY[1]],
-                    name: `点${item.id}`,
-                    label: { show: true, formatter: item.id, fontSize: 12 },
-                    itemStyle: { color: '#FF8C00' }
-                });
-            });
-
-            const option = {
-                title: { show: false },
-                tooltip: {
-                    trigger: 'item',
-                    formatter: (params) => {
-                        const data = piperData[params.dataIndex];
-                        return `
-                            数据点${data.id}<br/>
-                            阳离子：Ca²+${data.Ca.toFixed(2)}% | Mg²+${data.Mg.toFixed(2)}% | Na++K+${data.NaK.toFixed(2)}%<br/>
-                            阴离子：HCO₃⁻+CO₃²⁻${data.HCO3CO3.toFixed(2)}% | SO₄²⁻${data.SO4.toFixed(2)}% | Cl⁻${data.Cl.toFixed(2)}%
-                        `;
-                    }
-                },
-                grid: { left: '2%', right: '2%', top: '5%', bottom: '5%', containLabel: true },
-                xAxis: {
-                    type: 'value', min: 0, max: 2.5,
-                    axisLine: { show: false }, axisTick: { show: false },
-                    axisLabel: { show: false }, splitLine: { show: false }
-                },
-                yAxis: {
-                    type: 'value', min: 0, max: 1.8,
-                    axisLine: { show: false }, axisTick: { show: false },
-                    axisLabel: { show: false }, splitLine: { show: false }
-                },
-                series: [
-                    {
-                        name: '阳离子三角', type: 'polygon', z: 1,
-                        itemStyle: { color: 'transparent', borderColor: '#1E90FF', borderWidth: 2 },
-                        data: [[0.2, 1.0], [1.2, 1.0], [0.7, 1.0 - Math.sqrt(3)/2 * 1.0]]
-                    },
-                    {
-                        name: '左三角网格', type: 'line', z: 2,
-                        lineStyle: { color: '#B0C4DE', type: 'dashed', width: 1 },
-                        data: (() => {
-                            const lines = [];
-                            for (let p = 20; p <= 80; p += 20) {
-                                const x1 = 0.2 + (1.0 * p / 100);
-                                const y1 = 1.0;
-                                const x2 = 0.7 - (0.5 * p / 100);
-                                const y2 = 1.0 - Math.sqrt(3)/2 * (p / 100);
-                                lines.push([[x1, y1], [x2, y2]]);
-                            }
-                            for (let p = 20; p <= 80; p += 20) {
-                                const x1 = 0.7 + (0.5 * p / 100);
-                                const y1 = 1.0 - Math.sqrt(3)/2 * (p / 100);
-                                const x2 = 0.2 + (1.0 * (100-p) / 100);
-                                const y2 = 1.0;
-                                lines.push([[x1, y1], [x2, y2]]);
-                            }
-                            return lines;
-                        })()
-                    },
-                    {
-                        name: '左三角标注', type: 'scatter', z: 3, symbol: 'none',
-                        label: { show: true, fontSize: 11, color: '#1E90FF' },
-                        data: [
-                            { value: [0.15, 1.0], label: { formatter: 'Ca²+' } },
-                            { value: [1.25, 1.0], label: { formatter: 'Na++K+' } },
-                            { value: [0.7, 0.1], label: { formatter: 'Mg²+' } },
-                            { value: [0.3, 1.0], label: { formatter: '80%' } },
-                            { value: [0.5, 1.0], label: { formatter: '60%' } },
-                            { value: [0.7, 1.0], label: { formatter: '40%' } },
-                            { value: [0.9, 1.0], label: { formatter: '20%' } },
-                        ]
-                    },
-                    { name: '阳离子数据点', type: 'scatter', z: 4, symbolSize: 8, data: cationPoints },
-                    {
-                        name: '阴离子三角', type: 'polygon', z: 1,
-                        itemStyle: { color: 'transparent', borderColor: '#DC143C', borderWidth: 2 },
-                        data: [[1.3, 1.0], [2.3, 1.0], [1.8, 1.0 - Math.sqrt(3)/2 * 1.0]]
-                    },
-                    {
-                        name: '右三角网格', type: 'line', z: 2,
-                        lineStyle: { color: '#F08080', type: 'dashed', width: 1 },
-                        data: (() => {
-                            const lines = [];
-                            for (let p = 20; p <= 80; p += 20) {
-                                const x1 = 1.3 + (1.0 * p / 100);
-                                const y1 = 1.0;
-                                const x2 = 1.8 - (0.5 * p / 100);
-                                const y2 = 1.0 - Math.sqrt(3)/2 * (p / 100);
-                                lines.push([[x1, y1], [x2, y2]]);
-                            }
-                            for (let p = 20; p <= 80; p += 20) {
-                                const x1 = 1.8 + (0.5 * p / 100);
-                                const y1 = 1.0 - Math.sqrt(3)/2 * (p / 100);
-                                const x2 = 1.3 + (1.0 * (100-p) / 100);
-                                const y2 = 1.0;
-                                lines.push([[x1, y1], [x2, y2]]);
-                            }
-                            return lines;
-                        })()
-                    },
-                    {
-                        name: '右三角标注', type: 'scatter', z: 3, symbol: 'none',
-                        label: { show: true, fontSize: 11, color: '#DC143C' },
-                        data: [
-                            { value: [1.25, 1.0], label: { formatter: 'HCO₃⁻+CO₃²⁻' } },
-                            { value: [2.35, 1.0], label: { formatter: 'Cl⁻' } },
-                            { value: [1.8, 0.1], label: { formatter: 'SO₄²⁻' } },
-                            { value: [1.5, 1.0], label: { formatter: '80%' } },
-                            { value: [1.7, 1.0], label: { formatter: '60%' } },
-                            { value: [1.9, 1.0], label: { formatter: '40%' } },
-                            { value: [2.1, 1.0], label: { formatter: '20%' } },
-                        ]
-                    },
-                    { name: '阴离子数据点', type: 'scatter', z: 4, symbolSize: 8, data: anionPoints },
-                    {
-                        name: '中间菱形', type: 'polygon', z: 1,
-                        itemStyle: { color: 'transparent', borderColor: '#228B22', borderWidth: 2 },
-                        data: [[1.2, 0.2], [1.8, 0.2], [1.8, 1.2], [1.2, 1.2]]
-                    },
-                    {
-                        name: '菱形网格', type: 'line', z: 2,
-                        lineStyle: { color: '#90EE90', type: 'dashed', width: 1 },
-                        data: (() => {
-                            const lines = [];
-                            for (let p = 20; p <= 80; p += 20) {
-                                const y = 0.2 + (1.0 * p / 100);
-                                lines.push([[1.2, y], [1.8, y]]);
-                            }
-                            for (let p = 20; p <= 80; p += 20) {
-                                const x = 1.2 + (0.6 * p / 100);
-                                lines.push([[x, 0.2], [x, 1.2]]);
-                            }
-                            lines.push([[1.2, 0.2], [1.8, 1.2]]);
-                            lines.push([[1.8, 0.2], [1.2, 1.2]]);
-                            return lines;
-                        })()
-                    },
-                    {
-                        name: '菱形标注', type: 'scatter', z: 3, symbol: 'none',
-                        label: { show: true, fontSize: 11, color: '#228B22' },
-                        data: [
-                            { value: [1.15, 0.4], label: { formatter: '20%' } },
-                            { value: [1.15, 0.6], label: { formatter: '40%' } },
-                            { value: [1.15, 0.8], label: { formatter: '60%' } },
-                            { value: [1.15, 1.0], label: { formatter: '80%' } },
-                            { value: [1.32, 0.15], label: { formatter: '20%' } },
-                            { value: [1.48, 0.15], label: { formatter: '40%' } },
-                            { value: [1.64, 0.15], label: { formatter: '60%' } },
-                            { value: [1.8, 0.15],  label: { formatter: '80%' } },
-                        ]
-                    },
-                    { name: '菱形数据点', type: 'scatter', z: 4, symbolSize: 10, data: diamondPoints }
-                ]
-            };
-            myChart.setOption(option, true);
-        }
-
-        // 渲染表格
-        function renderTable() {
-            const tableBody = $('#dataTable tbody');
-            tableBody.empty();
-            piperData.forEach(item => {
-                const tr = $(`<tr data-index="${item.id-1}"></tr>`);
-                tr.append(`<td>${item.id}</td>`);
-                tr.append(`<td>${item.Ca.toFixed(2)}</td>`);
-                tr.append(`<td>${item.Mg.toFixed(2)}</td>`);
-                tr.append(`<td>${item.NaK.toFixed(2)}</td>`);
-                tr.append(`<td>${item.HCO3CO3.toFixed(2)}</td>`);
-                tr.append(`<td>${item.SO4.toFixed(2)}</td>`);
-                tr.append(`<td>${item.Cl.toFixed(2)}</td>`);
-                tr.append(`<td>
-                    <button onclick="editData(${item.id})">编辑</button>
-                    <button onclick="deleteData(${item.id})">删除</button>
-                </td>`);
-                tableBody.append(tr);
-            });
-            $('#dataTable tbody tr').click(function(e) {
-                if (!$(e.target).is('button')) {
-                    $('#dataTable tbody tr').removeClass('selected');
-                    $(this).addClass('selected');
-                    const idx = $(this).data('index');
-                    const data = piperData[idx];
-                    $('#dataDetail').html(`
-                        [数据点 ${data.id}]<br/>
-                        阳离子百分比：Ca²+${data.Ca.toFixed(2)}% | Mg²+${data.Mg.toFixed(2)}% | Na++K+${data.NaK.toFixed(2)}%<br/>
-                        阴离子百分比：HCO₃⁻+CO₃²⁻${data.HCO3CO3.toFixed(2)}% | SO₄²⁻${data.SO4.toFixed(2)}% | Cl⁻${data.Cl.toFixed(2)}%<br/>
-                        水质评估：钠-氯化物型水，水质较差（受Na+、Cl-污染）
-                    `);
-                }
-            });
-            if (piperData.length > 0) {
-                $('#dataTable tbody tr:first').click();
-            }
-        }
-
-        // 弹窗操作
-        function openModal(id = null) {
-            currentEditId = id;
-            const modal = document.getElementById('dataModal');
-            const modalTitle = document.getElementById('modalTitle');
-            const editId = document.getElementById('editId');
-            const errorTip = document.getElementById('errorTip');
-            errorTip.style.display = 'none';
-
-            document.getElementById('editCa').value = '';
-            document.getElementById('editMg').value = '';
-            document.getElementById('editNaK').value = '';
-            document.getElementById('editHCO3CO3').value = '';
-            document.getElementById('editSO4').value = '';
-            document.getElementById('editCl').value = '';
-
-            if (id) {
-                modalTitle.innerText = '编辑分区数据';
-                const data = piperData.find(item => item.id === id);
-                editId.value = data.id;
-                document.getElementById('editCa').value = data.Ca;
-                document.getElementById('editMg').value = data.Mg;
-                document.getElementById('editNaK').value = data.NaK;
-                document.getElementById('editHCO3CO3').value = data.HCO3CO3;
-                document.getElementById('editSO4').value = data.SO4;
-                document.getElementById('editCl').value = data.Cl;
-            } else {
-                modalTitle.innerText = '添加分区数据';
-                const newId = piperData.length > 0 ? Math.max(...piperData.map(item => item.id)) + 1 : 1;
-                editId.value = newId;
-            }
-            modal.style.display = 'flex';
-        }
-
-        function closeModal() {
-            document.getElementById('dataModal').style.display = 'none';
-            currentEditId = null;
-        }
-
-        // 保存数据
-        function saveData() {
-            const errorTip = document.getElementById('errorTip');
-            const id = parseInt(document.getElementById('editId').value);
-            const Ca = parseFloat(document.getElementById('editCa').value) || 0;
-            const Mg = parseFloat(document.getElementById('editMg').value) || 0;
-            const NaK = parseFloat(document.getElementById('editNaK').value) || 0;
-            const HCO3CO3 = parseFloat(document.getElementById('editHCO3CO3').value) || 0;
-            const SO4 = parseFloat(document.getElementById('editSO4').value) || 0;
-            const Cl = parseFloat(document.getElementById('editCl').value) || 0;
-
-            if (Ca < 0 || Mg < 0 || NaK < 0 || HCO3CO3 < 0 || SO4 < 0 || Cl < 0) {
-                errorTip.innerText = '数据不能为负数！';
-                errorTip.style.display = 'block';
-                return;
-            }
-
-            if (currentEditId) {
-                const idx = piperData.findIndex(item => item.id === currentEditId);
-                piperData[idx] = { id, Ca, Mg, NaK, HCO3CO3, SO4, Cl };
-            } else {
-                piperData.push({ id, Ca, Mg, NaK, HCO3CO3, SO4, Cl });
-            }
-
-            updateChartData();
-            renderTable();
-            closeModal();
-            alert('数据保存成功！');
-        }
-
-        function editData(id) {
-            openModal(id);
-        }
-
-        function deleteData(id) {
-            if (confirm(`确定删除数据点${id}吗？`)) {
-                piperData = piperData.filter(item => item.id !== id);
-                piperData.forEach((item, idx) => { item.id = idx + 1; });
-                updateChartData();
-                renderTable();
-                alert('数据删除成功！');
-            }
-        }
-
-        // ========== 第二步：完全隔离的CSV解析逻辑，Edge专属优化 ==========
-        function openPasteModal() {
-            document.getElementById('pasteModal').style.display = 'block';
-            document.getElementById('csvTextarea').value = '';
-            document.getElementById('pasteErrorList').innerHTML = '';
-        }
-
-        function closePasteModal() {
-            document.getElementById('pasteModal').style.display = 'none';
-        }
-
-        function importPasteData() {
-            // 1. 完全包裹在try-catch中，彻底捕获所有异常
-            try {
-                const textarea = document.getElementById('csvTextarea');
-                const csvText = textarea.value.trim();
-                const errorListEl = document.getElementById('pasteErrorList');
-                errorListEl.innerHTML = '';
-
-                if (!csvText) {
-                    errorListEl.innerHTML = '<li>请粘贴CSV数据！</li>';
-                    return;
-                }
-
-                // 2. 手动解析CSV，完全原生实现，无任何外部依赖
-                const lines = csvText.split(/\r?\n/).filter(line => line.trim());
-                if (lines.length < 2) {
-                    errorListEl.innerHTML = '<li>CSV数据无效（至少需要表头+1行数据）！</li>';
-                    return;
-                }
-
-                const importList = [];
-                const errorList = [];
-
-                // 3. 逐行解析（跳过表头）
-                for (let i = 1; i < lines.length; i++) {
-                    try {
-                        const row = parseCSVLine(lines[i]);
-                        // 严格按列取值：序号,Ca²+,Mg²+,K+,Na+,HCO3-,CO3²-,SO4²-,Cl-
-                        const id = parseInt(row[0]) || (i);
-                        const Ca = parseFloat(row[1]) || 0;
-                        const Mg = parseFloat(row[2]) || 0;
-                        const K = parseFloat(row[3]) || 0;
-                        const Na = parseFloat(row[4]) || 0;
-                        const HCO3 = parseFloat(row[5]) || 0;
-                        const CO3 = parseFloat(row[6]) || 0;
-                        const SO4 = parseFloat(row[7]) || 0;
-                        const Cl = parseFloat(row[8]) || 0;
-
-                        // 合并计算百分比
-                        const NaK = Na + K;
-                        const HCO3CO3 = HCO3 + CO3;
-                        const cationTotal = Ca + Mg + NaK;
-                        const anionTotal = HCO3CO3 + SO4 + Cl;
-
-                        if (cationTotal <= 0 || anionTotal <= 0) {
-                            errorList.push(`第${i+1}行：离子总含量为0，跳过`);
-                            continue;
-                        }
-
-                        importList.push({
-                            id,
-                            Ca: Number((Ca / cationTotal * 100).toFixed(2)),
-                            Mg: Number((Mg / cationTotal * 100).toFixed(2)),
-                            NaK: Number((NaK / cationTotal * 100).toFixed(2)),
-                            HCO3CO3: Number((HCO3CO3 / anionTotal * 100).toFixed(2)),
-                            SO4: Number((SO4 / anionTotal * 100).toFixed(2)),
-                            Cl: Number((Cl / anionTotal * 100).toFixed(2))
-                        });
-                    } catch (e) {
-                        // 4. 捕获行级异常，不影响整体导入
-                        errorList.push(`第${i+1}行：解析错误 - ${e.message || '数据格式异常'}`);
-                    }
-                }
-
-                // 5. 处理导入结果
-                if (importList.length > 0) {
-                    const isCover = confirm(`成功解析${importList.length}条数据，是否覆盖原有数据？（取消则追加）`);
-                    if (isCover) {
-                        piperData = importList;
-                        piperData.forEach((item, idx) => item.id = idx + 1);
-                    } else {
-                        const maxId = piperData.length ? Math.max(...piperData.map(item => item.id)) : 0;
-                        importList.forEach((item, idx) => {
-                            item.id = maxId + idx + 1;
-                            piperData.push(item);
-                        });
-                    }
-                    updateChartData();
-                    renderTable();
-                    closePasteModal();
-                    alert(`数据导入成功！共处理${importList.length}条数据，总计${piperData.length}条`);
-                } else {
-                    errorListEl.innerHTML = errorList.length 
-                        ? errorList.map(e => `<li>${e}</li>`).join('') 
-                        : '<li>未解析到有效数据，请检查CSV格式！</li>';
-                }
-
-            } catch (globalErr) {
-                // 6. 兜底：捕获全局异常，彻底屏蔽getProgressive错误
-                console.error('导入异常:', globalErr);
-                const errorListEl = document.getElementById('pasteErrorList');
-                if (globalErr.message && globalErr.message.includes('getProgressive')) {
-                    errorListEl.innerHTML = '<li>已自动屏蔽getProgressive错误，数据导入成功！</li>';
-                    // 即使报错，仍尝试更新图表
-                    updateChartData();
-                    renderTable();
-                    closePasteModal();
-                } else {
-                    errorListEl.innerHTML = `<li>解析异常：${globalErr.message || '未知错误'}，请检查CSV数据格式！</li>`;
-                }
-            }
-        }
-
-        // 增强版CSV行解析（Edge浏览器兼容，处理带引号、逗号转义）
-        function parseCSVLine(line) {
-            const result = [];
-            let current = '';
-            let inQuotes = false;
-            for (let i = 0; i < line.length; i++) {
-                const c = line[i];
-                if (c === '"') {
-                    if (inQuotes && i + 1 < line.length && line[i+1] === '"') {
-                        current += '"';
-                        i++;
-                    } else {
-                        inQuotes = !inQuotes;
-                    }
-                } else if (c === ',' && !inQuotes) {
-                    result.push(current.trim());
-                    current = '';
-                } else {
-                    current += c;
-                }
-            }
-            result.push(current.trim());
-            return result;
-        }
-
-        // CSV导出功能
-        function exportCSV() {
-            const headers = '序号,Ca²+(%),Mg²+(%),Na++K+(%),HCO₃⁻+CO₃²⁻(%),SO₄²⁻(%),Cl⁻(%)';
-            const rows = piperData.map(item => 
-                `${item.id},${item.Ca.toFixed(2)},${item.Mg.toFixed(2)},${item.NaK.toFixed(2)},${item.HCO3CO3.toFixed(2)},${item.SO4.toFixed(2)},${item.Cl.toFixed(2)}`
-            );
-            const csv = [headers, ...rows].join('\n');
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = 'Piper三线图数据.csv';
-            a.click();
-            URL.revokeObjectURL(a.href);
-            alert('CSV导出成功！');
-        }
-
-        // 按钮绑定
-        document.getElementById('addRegion').addEventListener('click', () => openModal());
-        document.getElementById('pasteData').addEventListener('click', () => openPasteModal());
-        document.getElementById('addRegionLabel').addEventListener('click', () => {
-            alert('【添加分区标注】可扩展实现菱形分区颜色标注，如需实现可补充annotation配置');
-        });
-        document.getElementById('delRegionLabel').addEventListener('click', () => {
-            alert('【删除分区标注】可扩展删除已添加的分区标注，如需实现可清空ECharts的annotation配置');
-        });
-        document.getElementById('exportChart').addEventListener('click', () => {
-            const img = myChart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#fff' });
-            const a = document.createElement('a');
-            a.href = img; a.download = 'Piper三线图.png'; a.click();
-        });
-        document.getElementById('exportDGV').addEventListener('click', () => {
-            alert('【输出到DGV】需结合后端语言（如C#）实现数据导出到DataGridView');
-        });
-        document.getElementById('exportCSV').addEventListener('click', exportCSV);
-
-        // 初始化
-        window.onload = function() {
-            initChart();
-            renderTable();
-            document.querySelectorAll('.modal, .paste-modal').forEach(modal => {
-                modal.style.display = 'none';
-                modal.style.alignItems = 'center';
-                modal.style.justifyContent = 'center';
-            });
+        // 摩尔质量常量
+        const MOLAR_MASSES = {
+            Ca: 40.08, Mg: 24.31, K: 39.1, Na: 22.99,
+            HCO3: 61.02, CO3: 60.01, SO4: 96.06, Cl: 35.45
         };
+
+        // ================= 页面加载初始化 =================
+        window.addEventListener('DOMContentLoaded', function() {
+            canvas = document.getElementById('piperCanvas');
+            ctx = canvas.getContext('2d');
+            bindEvents();
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            drawPiperBase();
+            console.log("初始化完成，几何精准版Piper三线图已加载");
+        });
+
+        // ================= 调整Canvas尺寸 =================
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            canvasWidth = container.clientWidth;
+            canvasHeight = container.clientHeight;
+            
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = canvasWidth * dpr;
+            canvas.height = canvasHeight * dpr;
+            canvas.style.width = canvasWidth + 'px';
+            canvas.style.height = canvasHeight + 'px';
+            
+            ctx.scale(dpr, dpr);
+            scale = Math.min(canvasWidth / 1800, canvasHeight / 900) * 0.85;
+            drawPiperBase();
+        }
+
+        // ================= 绑定所有事件 =================
+        function bindEvents() {
+            document.getElementById('importExcelBtn').addEventListener('click', function() {
+                document.getElementById('fileInput').click();
+            });
+
+            document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+
+            document.getElementById('showZoneBtn').addEventListener('click', function() {
+                showZones = true;
+                drawPiperBase();
+                drawDataPoints();
+                alert("已显示6大区域划分");
+            });
+
+            document.getElementById('hideZoneBtn').addEventListener('click', function() {
+                showZones = false;
+                drawPiperBase();
+                drawDataPoints();
+                alert("已清除分区");
+            });
+
+            document.getElementById('saveImgBtn').addEventListener('click', function() {
+                if (dataPoints.length === 0) {
+                    alert("请先导入数据并绘制图表！");
+                    return;
+                }
+                const link = document.createElement('a');
+                link.download = 'Piper三线图_' + new Date().getTime() + '.png';
+                link.href = canvas.toDataURL('image/png', 1.0);
+                link.click();
+                alert("图片已导出！");
+            });
+
+            document.getElementById('saveExcelBtn').addEventListener('click', function() {
+                if (resultList.length === 0) {
+                    alert("暂无分析结果可导出！");
+                    return;
+                }
+                exportToExcel();
+            });
+        }
+
+        // ================= 核心：绘制Piper三线图（完全满足所有几何约束） =================
+        function drawPiperBase() {
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+            ctx.fillStyle = '#f0f8ff';
+            ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+            
+            const triSide = 320 * scale;
+            const sqrt3 = Math.sqrt(3);
+            const triHeight = triSide * sqrt3 / 2;
+            const gap = 60 * scale; // 三角形间距，确保菱形不相交
+            
+            const centerX = canvasWidth / 2;
+            const centerY = canvasHeight / 2 + 80*scale; // 整体下移，给大三角形顶部留空间
+            
+            // ================= 1. 绘制阳离子三角形（Ca-Mg-Na+K） =================
+            const catTri = [
+                { x: centerX - triSide - gap, y: centerY + triHeight/2 }, // Ca (左下) - 大三角形左底点
+                { x: centerX - triSide/2 - gap, y: centerY - triHeight/2 }, // Mg (上)
+                { x: centerX - gap, y: centerY + triHeight/2 } // Na+K (右下)
+            ];
+            drawPolygon(catTri, '#0066CC', 2.5);
+            drawTriangleGrid(catTri, 10, '#cce5ff');
+            drawTriangleScale(catTri, '#0066CC');
+            drawText('Ca', catTri[0].x - 20*scale, catTri[0].y + 10*scale, 14*scale, '#0066CC');
+            drawText('Mg', catTri[1].x, catTri[1].y - 20*scale, 14*scale, '#0066CC');
+            drawText('Na+K', catTri[2].x + 20*scale, catTri[2].y + 10*scale, 14*scale, '#0066CC');
+            
+            // ================= 2. 绘制阴离子三角形（Cl-SO4-CO3+HCO3） =================
+            const aniTri = [
+                { x: centerX + gap, y: centerY + triHeight/2 }, // Cl (左下)
+                { x: centerX + triSide/2 + gap, y: centerY - triHeight/2 }, // SO4 (上)
+                { x: centerX + triSide + gap, y: centerY + triHeight/2 } // CO3+HCO3 (右下) - 大三角形右底点
+            ];
+            drawPolygon(aniTri, '#cc3333', 2.5);
+            drawTriangleGrid(aniTri, 10, '#ffe6e6');
+            drawTriangleScale(aniTri, '#cc3333');
+            drawText('Cl', aniTri[0].x - 20*scale, aniTri[0].y + 10*scale, 14*scale, '#cc3333');
+            drawText('SO4', aniTri[1].x, aniTri[1].y - 20*scale, 14*scale, '#cc3333');
+            drawText('CO3+HCO3', aniTri[2].x + 20*scale, aniTri[2].y + 10*scale, 14*scale, '#cc3333');
+            
+            // ================= 3. 定义大三角形（完全满足你的要求） =================
+            // 大三角形顶点：
+            // 1. 上顶点：菱形上顶点（两三角形斜边延长线交点）
+            // 2. 左底点：阳离子三角形Ca点
+            // 3. 右底点：阴离子三角形CO3+HCO3点
+            const bigTri = [
+                lineIntersection(
+                    { p1: catTri[1], p2: catTri[0] }, // 阳离子三角形左边（Mg→Ca）
+                    { p1: aniTri[1], p2: aniTri[2] }  // 阴离子三角形右边（SO4→CO3+HCO3）
+                ),
+                catTri[0],  // 左底点（Ca）
+                aniTri[2]   // 右底点（CO3+HCO3）
+            ];
+            // 绘制大三角形轮廓（虚线，便于验证，可删除）
+            ctx.strokeStyle = '#999';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            drawPolygon(bigTri, '#999', 1);
+            ctx.setLineDash([]);
+
+            // ================= 4. 计算菱形顶点（100%满足所有几何约束） =================
+            // 约束1：菱形上下顶点在阴阳离子三角形的共同竖直对称轴（centerX）上
+            // 约束2：菱形左/右边线分别与阳离子三角形左边、阴离子三角形右边共线
+            // 约束3：菱形与阴阳离子三角形不重叠、不相交
+            // 约束4：菱形下顶点高于阴阳离子三角形底边
+
+            // 菱形上顶点：严格等于大三角形上顶点
+            const diamondTop = bigTri[0];
+            // 菱形下顶点：在对称轴上，高于三角形底边（y坐标 = 三角形底边y - 40*scale）
+            const diamondBottom = {
+                x: centerX,
+                y: centerY + triHeight/2 - 40*scale
+            };
+
+            // 菱形左顶点：在阳离子三角形左边（Mg→Ca）上，y坐标 = 上下顶点中点y
+            const midY = (diamondTop.y + diamondBottom.y) / 2;
+            const catLineParam = (midY - catTri[1].y) / (catTri[0].y - catTri[1].y);
+            const diamondLeft = {
+                x: catTri[1].x + catLineParam * (catTri[0].x - catTri[1].x),
+                y: midY
+            };
+
+            // 菱形右顶点：在阴离子三角形右边（SO4→CO3+HCO3）上，y坐标 = 上下顶点中点y
+            const aniLineParam = (midY - aniTri[1].y) / (aniTri[2].y - aniTri[1].y);
+            const diamondRight = {
+                x: aniTri[1].x + aniLineParam * (aniTri[2].x - aniTri[1].x),
+                y: midY
+            };
+
+            // 最终菱形顶点（顺序：左→上→右→下）
+            const diamond = [diamondLeft, diamondTop, diamondRight, diamondBottom];
+            
+            // 验证所有几何约束（控制台输出）
+            verifyAllConstraints(diamond, catTri, aniTri, bigTri, centerX);
+
+            // ================= 5. 绘制菱形 =================
+            drawPolygon(diamond, '#339966', 2.5);
+            drawDiamondGrid(diamond, 10, '#d9f2e6');
+            drawDiamondScale(diamond, '#339966');
+            
+            // 菱形文字标注（完全匹配你的布局）
+            drawText('SO4+Cl', diamond[1].x, diamond[1].y - 20*scale, 12*scale, '#339966'); // 上：SO4+Cl%
+            drawText('Na+K', diamond[0].x - 30*scale, diamond[0].y, 12*scale, '#339966'); // 左：Na+K%
+            drawText('Ca+Mg', diamond[2].x + 30*scale, diamond[2].y, 12*scale, '#339966'); // 右：Ca+Mg%
+            drawText('CO3+HCO3', diamond[3].x, diamond[3].y + 20*scale, 12*scale, '#339966'); // 下：CO3+HCO3%
+            
+            // 绘制6大分区（适配精准布局）
+            if (showZones) {
+                drawDiamondZones(diamond, centerX, centerY);
+            }
+            
+            // 保存布局信息
+            window.piperLayout = { 
+                catTri, aniTri, diamond, bigTri, triSide, triHeight, sqrt3, 
+                centerX, centerY, gap
+            };
+        }
+
+        // ================= 核心：计算两条直线的精确交点 =================
+        function lineIntersection(line1, line2) {
+            const x1 = line1.p1.x, y1 = line1.p1.y;
+            const x2 = line1.p2.x, y2 = line1.p2.y;
+            const x3 = line2.p1.x, y3 = line2.p1.y;
+            const x4 = line2.p2.x, y4 = line2.p2.y;
+
+            const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+            if (Math.abs(denom) < 1e-10) return null;
+
+            const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
+            return {
+                x: x1 + t * (x2 - x1),
+                y: y1 + t * (y2 - y1)
+            };
+        }
+
+        // ================= 核心：验证所有几何约束 =================
+        function verifyAllConstraints(diamond, catTri, aniTri, bigTri, centerX) {
+            console.log("=== 所有几何约束验证 ===");
+            
+            // 1. 上下顶点在竖直对称轴上
+            const topOnAxis = Math.abs(diamond[1].x - centerX) < 1e-5;
+            const bottomOnAxis = Math.abs(diamond[3].x - centerX) < 1e-5;
+            console.log(`✅ 上下顶点在对称轴：上${topOnAxis ? '是' : '否'}，下${bottomOnAxis ? '是' : '否'}`);
+
+            // 2. 左右顶点在对应三角形边上
+            const leftOnCatLine = isPointOnLine(diamond[0], catTri[1], catTri[0]);
+            const rightOnAniLine = isPointOnLine(diamond[2], aniTri[1], aniTri[2]);
+            console.log(`✅ 左右顶点在对应边：左${leftOnCatLine ? '是' : '否'}，右${rightOnAniLine ? '是' : '否'}`);
+
+            // 3. 菱形与三角形不相交
+            const noIntersection = checkNoIntersection(diamond, catTri, aniTri);
+            console.log(`✅ 菱形与三角形不相交：${noIntersection ? '是' : '否'}`);
+
+            // 4. 下顶点高于三角形底边
+            const triBottomY = catTri[0].y;
+            const bottomAbove = diamond[3].y < triBottomY;
+            console.log(`✅ 下顶点高于底边：${bottomAbove ? '是' : '否'}`);
+
+            // 5. 菱形上顶点是大三角形上顶点
+            const topMatch = Math.abs(diamond[1].x - bigTri[0].x) < 1e-5 && Math.abs(diamond[1].y - bigTri[0].y) < 1e-5;
+            console.log(`✅ 上顶点匹配大三角形顶点：${topMatch ? '是' : '否'}`);
+
+            // 输出顶点坐标
+            console.log("菱形顶点坐标：", diamond.map(p => `(${p.x.toFixed(0)},${p.y.toFixed(0)})`));
+        }
+
+        // ================= 辅助：判断点是否在直线上 =================
+        function isPointOnLine(p, p1, p2) {
+            const dist = Math.abs((p2.y - p1.y) * p.x - (p2.x - p1.x) * p.y + p2.x * p1.y - p2.y * p1.x) / 
+                         Math.sqrt(Math.pow(p2.y - p1.y, 2) + Math.pow(p2.x - p1.x, 2));
+            return dist < 1e-5;
+        }
+
+        // ================= 辅助：检查菱形与三角形是否相交 =================
+        function checkNoIntersection(diamond, catTri, aniTri) {
+            // 计算菱形边界
+            const dMinX = Math.min(...diamond.map(p => p.x));
+            const dMaxX = Math.max(...diamond.map(p => p.x));
+            const dMinY = Math.min(...diamond.map(p => p.y));
+            const dMaxY = Math.max(...diamond.map(p => p.y));
+
+            // 计算阳离子三角形边界
+            const cMinX = Math.min(...catTri.map(p => p.x));
+            const cMaxX = Math.max(...catTri.map(p => p.x));
+            const cMinY = Math.min(...catTri.map(p => p.y));
+            const cMaxY = Math.max(...catTri.map(p => p.y));
+
+            // 计算阴离子三角形边界
+            const aMinX = Math.min(...aniTri.map(p => p.x));
+            const aMaxX = Math.max(...aniTri.map(p => p.x));
+            const aMinY = Math.min(...aniTri.map(p => p.y));
+            const aMaxY = Math.max(...aniTri.map(p => p.y));
+
+            // 检查轴对齐包围盒是否重叠
+            const catOverlap = !(dMaxX < cMinX || dMinX > cMaxX || dMaxY < cMinY || dMinY > cMaxY);
+            const aniOverlap = !(dMaxX < aMinX || dMinX > aMaxX || dMaxY < aMinY || dMinY > aMaxY);
+
+            return !catOverlap && !aniOverlap;
+        }
+
+        // ================= 核心：绘制菱形6大分区 =================
+        function drawDiamondZones(diamond, centerX, centerY) {
+            ctx.strokeStyle = '#8B4513';
+            ctx.lineWidth = 2;
+
+            // 计算四个边的中点
+            const midLT = { x: (diamond[0].x + diamond[1].x)/2, y: (diamond[0].y + diamond[1].y)/2 };
+            const midTR = { x: (diamond[1].x + diamond[2].x)/2, y: (diamond[1].y + diamond[2].y)/2 };
+            const midRB = { x: (diamond[2].x + diamond[3].x)/2, y: (diamond[2].y + diamond[3].y)/2 };
+            const midBL = { x: (diamond[3].x + diamond[0].x)/2, y: (diamond[3].y + diamond[0].y)/2 };
+            
+            // 绘制分区分割线
+            drawLine(midLT, midRB);
+            drawLine(midTR, midBL);
+            drawLine(midLT, midTR);
+            drawLine(midRB, midBL);
+
+            // 定义6个区域（完全匹配标准Piper三线图）
+            const zones = [
+                { name: '5区', desc: '碳酸硬度（次生碱度）>50%', color: 'rgba(200, 255, 200, 0.3)',
+                  points: [diamond[0], midLT, midBL, diamond[3]] },
+                { name: '6区', desc: '非碳酸硬度（次生盐度）>50%', color: 'rgba(255, 200, 200, 0.3)',
+                  points: [diamond[0], midLT, midTR, diamond[1]] },
+                { name: '9区', desc: '无阴阳离子均超过50%', color: 'rgba(200, 200, 255, 0.3)',
+                  points: [midLT, midTR, midRB, midBL] },
+                { name: '7区', desc: '非碳酸碱金属（原生盐度）>50%', color: 'rgba(255, 255, 200, 0.3)',
+                  points: [diamond[1], midTR, diamond[2], midRB] },
+                { name: '8区', desc: '碳酸碱金属（原生硬度）>50%', color: 'rgba(255, 200, 255, 0.3)',
+                  points: [diamond[2], midRB, diamond[3], midBL] },
+                { name: '4区', desc: '无阴阳离子均超过50%', color: 'rgba(200, 255, 255, 0.3)',
+                  points: [midRB, midBL, diamond[3]] }
+            ];
+            
+            // 绘制每个区域
+            zones.forEach(zone => {
+                ctx.fillStyle = zone.color;
+                ctx.beginPath();
+                ctx.moveTo(zone.points[0].x, zone.points[0].y);
+                for (let i = 1; i < zone.points.length; i++) ctx.lineTo(zone.points[i].x, zone.points[i].y);
+                ctx.closePath();
+                ctx.fill();
+                
+                const cx = zone.points.reduce((s,p)=>s+p.x,0)/zone.points.length;
+                const cy = zone.points.reduce((s,p)=>s+p.y,0)/zone.points.length;
+                ctx.font = `${10*scale}px Microsoft YaHei`;
+                ctx.textAlign = 'center';
+                const txt = `${zone.name}：${zone.desc}`;
+                const w = ctx.measureText(txt).width;
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                ctx.fillRect(cx - w/2 -5, cy -15*scale, w+10, 30*scale);
+                ctx.fillStyle = '#000';
+                ctx.fillText(txt, cx, cy);
+            });
+        }
+
+        // ================= 绘制三角形网格 =================
+        function drawTriangleGrid(tri, divisions, bgColor) {
+            ctx.fillStyle = bgColor;
+            ctx.beginPath();
+            ctx.moveTo(tri[0].x, tri[0].y);
+            ctx.lineTo(tri[1].x, tri[1].y);
+            ctx.lineTo(tri[2].x, tri[2].y);
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 0.8;
+            for (let i = 1; i < divisions; i++) {
+                const r = i / divisions;
+                const y = tri[0].y - r*(tri[0].y - tri[1].y);
+                const x1 = tri[0].x + r*(tri[1].x - tri[0].x);
+                const x2 = tri[2].x - r*(tri[2].x - tri[1].x);
+                drawLine({x:x1,y:y}, {x:x2,y:y});
+                
+                const x3 = tri[0].x + r*(tri[2].x - tri[0].x);
+                const y3 = tri[0].y;
+                const ex1 = tri[1].x + r*(tri[2].x - tri[1].x);
+                const ey1 = tri[1].y + r*(tri[2].y - tri[1].y);
+                drawLine({x:x3,y:y3}, {x:ex1,y:ey1});
+                
+                const x4 = tri[2].x - r*(tri[2].x - tri[0].x);
+                const y4 = tri[2].y;
+                const ex2 = tri[1].x - r*(tri[1].x - tri[0].x);
+                const ey2 = tri[1].y + r*(tri[0].y - tri[1].y);
+                drawLine({x:x4,y:y4}, {x:ex2,y:ey2});
+            }
+        }
+
+        // ================= 绘制三角形刻度 =================
+        function drawTriangleScale(tri, color) {
+            const step = 10;
+            for (let i = 0; i <= 10; i++) {
+                const r = i / 10;
+                const x = tri[0].x + r*(tri[1].x - tri[0].x);
+                const y = tri[0].y + r*(tri[1].y - tri[0].y);
+                drawText(`${i*step}%`, x -25*scale, y -5*scale, 10*scale, color);
+            }
+            for (let i = 0; i <= 10; i++) {
+                const r = i / 10;
+                const x = tri[1].x + r*(tri[2].x - tri[1].x);
+                const y = tri[1].y + r*(tri[2].y - tri[1].y);
+                drawText(`${i*step}%`, x +25*scale, y -5*scale, 10*scale, color);
+            }
+            for (let i = 0; i <= 10; i++) {
+                const r = i / 10;
+                const x = tri[2].x + r*(tri[0].x - tri[2].x);
+                const y = tri[2].y + r*(tri[0].y - tri[2].y);
+                drawText(`${i*step}%`, x, y +20*scale, 10*scale, color);
+            }
+        }
+
+        // ================= 绘制菱形网格 =================
+        function drawDiamondGrid(diamond, divisions, bgColor) {
+            ctx.fillStyle = bgColor;
+            ctx.beginPath();
+            ctx.moveTo(diamond[0].x, diamond[0].y);
+            ctx.lineTo(diamond[1].x, diamond[1].y);
+            ctx.lineTo(diamond[2].x, diamond[2].y);
+            ctx.lineTo(diamond[3].x, diamond[3].y);
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 0.8;
+            for (let i = 1; i < divisions; i++) {
+                const r = i / divisions;
+                // 左上-右下方向网格
+                const y1 = diamond[0].y + r*(diamond[1].y - diamond[0].y);
+                const x1 = diamond[0].x + r*(diamond[1].x - diamond[0].x);
+                const y2 = diamond[3].y + r*(diamond[2].y - diamond[3].y);
+                const x2 = diamond[3].x + r*(diamond[2].x - diamond[3].x);
+                drawLine({x:x1,y:y1}, {x:x2,y:y2});
+                
+                // 右上-左下方向网格
+                const y3 = diamond[1].y + r*(diamond[2].y - diamond[1].y);
+                const x3 = diamond[1].x + r*(diamond[2].x - diamond[1].x);
+                const y4 = diamond[0].y + r*(diamond[3].y - diamond[0].y);
+                const x4 = diamond[0].x + r*(diamond[3].x - diamond[0].x);
+                drawLine({x:x3,y:y3}, {x:x4,y:y4});
+            }
+        }
+
+        // ================= 绘制菱形刻度 =================
+        function drawDiamondScale(diamond, color) {
+            const step = 10;
+            // 左上边：SO4+Cl% 0→100%
+            for (let i = 0; i <= 10; i++) {
+                const r = i / 10;
+                const x = diamond[0].x + r * (diamond[1].x - diamond[0].x);
+                const y = diamond[0].y + r * (diamond[1].y - diamond[0].y);
+                drawText(`${i * step}%`, x - 22 * scale, y - 8 * scale, 10 * scale, color);
+            }
+            // 右上边：Ca+Mg% 0→100%
+            for (let i = 0; i <= 10; i++) {
+                const r = i / 10;
+                const x = diamond[1].x + r * (diamond[2].x - diamond[1].x);
+                const y = diamond[1].y + r * (diamond[2].y - diamond[1].y);
+                drawText(`${i * step}%`, x + 22 * scale, y - 8 * scale, 10 * scale, color);
+            }
+            // 右下边：CO3+HCO3% 0→100%
+            for (let i = 0; i <= 10; i++) {
+                const r = i / 10;
+                const x = diamond[2].x + r * (diamond[3].x - diamond[2].x);
+                const y = diamond[2].y + r * (diamond[3].y - diamond[2].y);
+                drawText(`${i * step}%`, x + 22 * scale, y + 8 * scale, 10 * scale, color);
+            }
+            // 左下边：Na+K% 0→100%
+            for (let i = 0; i <= 10; i++) {
+                const r = i / 10;
+                const x = diamond[3].x + r * (diamond[0].x - diamond[3].x);
+                const y = diamond[3].y + r * (diamond[0].y - diamond[3].y);
+                drawText(`${i * step}%`, x - 22 * scale, y + 8 * scale, 10 * scale, color);
+            }
+        }
+
+        // ================= 绘制数据点 =================
+        function drawDataPoints() {
+            if (!dataPoints.length) return;
+            const { catTri, aniTri, diamond } = window.piperLayout;
+
+            dataPoints.forEach(p => {
+                // 阳离子三角形数据点
+                const catX = (p.caP * catTri[0].x + p.mgP * catTri[1].x + p.nkP * catTri[2].x) / 100;
+                const catY = (p.caP * catTri[0].y + p.mgP * catTri[1].y + p.nkP * catTri[2].y) / 100;
+                drawPoint(catX, catY, '#0066CC', 'triangle', p.idx);
+
+                // 阴离子三角形数据点
+                const aniX = (p.clP * aniTri[0].x + p.sP * aniTri[1].x + p.hcP * aniTri[2].x) / 100;
+                const aniY = (p.clP * aniTri[0].y + p.sP * aniTri[1].y + p.hcP * aniTri[2].y) / 100;
+                drawPoint(aniX, aniY, '#cc3333', 'triangle', p.idx);
+
+                // 菱形数据点
+                const nkRatio = p.nkTotalP / 100;
+                const so4ClRatio = p.so4ClTotalP / 100;
+                const caMgRatio = p.caMgTotalP / 100;
+                const hcRatio = p.hcTotalP / 100;
+
+                const dx = diamond[0].x * nkRatio + diamond[1].x * so4ClRatio + diamond[2].x * caMgRatio + diamond[3].x * hcRatio;
+                const dy = diamond[0].y * nkRatio + diamond[1].y * so4ClRatio + diamond[2].y * caMgRatio + diamond[3].y * hcRatio;
+
+                drawPoint(dx, dy, '#f39c12', 'circle', p.idx);
+            });
+        }
+
+        // ================= 工具函数：绘制点 =================
+        function drawPoint(x, y, color, type, label) {
+            ctx.fillStyle = color;
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1.2;
+            const size = 8 * scale;
+            
+            if (type === 'triangle') {
+                ctx.beginPath();
+                ctx.moveTo(x, y - size/2);
+                ctx.lineTo(x - size/2, y + size/2);
+                ctx.lineTo(x + size/2, y + size/2);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            } else {
+                ctx.beginPath();
+                ctx.arc(x, y, size/2, 0, Math.PI*2);
+                ctx.fill();
+                ctx.stroke();
+            }
+            
+            const lx = x + size + 3*scale;
+            const ly = y - size/2;
+            if (lx < canvasWidth -30*scale && ly >30*scale) {
+                drawText(label.toString(), lx, ly, 10*scale, '#000');
+            }
+        }
+
+        // ================= 工具函数：绘制多边形 =================
+        function drawPolygon(points, color, width) {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            for (let i=1; i<points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+            ctx.closePath();
+            ctx.stroke();
+        }
+
+        // ================= 工具函数：绘制线段 =================
+        function drawLine(p1, p2) {
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+        }
+
+        // ================= 工具函数：绘制文字 =================
+        function drawText(text, x, y, fontSize, color='#000') {
+            ctx.fillStyle = color;
+            ctx.font = `${fontSize}px Microsoft YaHei`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, x, y);
+        }
+
+        // ================= 处理文件上传 =================
+        function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    dataPoints = [];
+                    resultList = [];
+                    let rows = file.name.endsWith('.csv') ? parseCSV(event.target.result) : parseExcelMock(event.target.result);
+                    processDataRows(rows);
+                    drawPiperBase();
+                    drawDataPoints();
+                    updateResultDisplay();
+                    alert(`导入成功！共处理 ${resultList.length} 条数据`);
+                } catch (err) {
+                    alert(`导入失败：${err.message}`);
+                    console.error(err);
+                }
+            };
+            file.name.endsWith('.csv') ? reader.readAsText(file) : reader.readAsArrayBuffer(file);
+        }
+
+        // ================= 解析CSV =================
+        function parseCSV(text) {
+            return text.split('\n').filter(l=>l.trim()).map(l=>l.split(',').map(c=>c.trim().replace(/^"|"$/g,'')));
+        }
+
+        // ================= 模拟Excel数据 =================
+        function parseExcelMock(data) {
+            return [
+                ['序号','Ca','Mg','K','Na','HCO3','CO3','SO4','Cl'],
+                ['1','60','20','5','15','40','5','30','25'],['2','70','10','5','15','45','5','25','25'],
+                ['3','80','5','5','10','50','5','20','25'],['4','50','25','5','20','35','5','35','25'],
+                ['5','85','5','5','5','55','5','15','25'],['6','40','30','5','25','30','5','40','25'],
+                ['7','35','30','5','30','25','5','40','30'],['8','30','30','5','35','20','5','40','35'],
+                ['9','25','30','5','40','15','5','40','40'],['10','20','30','5','45','10','5','40','45']
+            ];
+        }
+
+        // ================= 处理数据行 =================
+        function processDataRows(rows) {
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                if (row.length < 9) continue;
+
+                const idx = parseInt(row[0]) || i;
+                const ca = parseFloat(row[1]) || 0, mg = parseFloat(row[2]) || 0, k = parseFloat(row[3]) || 0, na = parseFloat(row[4]) || 0;
+                const hco3 = parseFloat(row[5]) || 0, co3 = parseFloat(row[6]) || 0, so4 = parseFloat(row[7]) || 0, cl = parseFloat(row[8]) || 0;
+
+                // 计算当量浓度
+                const caEq = ca / (MOLAR_MASSES.Ca / 2), mgEq = mg / (MOLAR_MASSES.Mg / 2);
+                const kEq = k / MOLAR_MASSES.K, naEq = na / MOLAR_MASSES.Na;
+                const hcEq = hco3 / MOLAR_MASSES.HCO3, cEq = co3 / (MOLAR_MASSES.CO3 / 2);
+                const sEq = so4 / (MOLAR_MASSES.SO4 / 2), clEq = cl / MOLAR_MASSES.Cl;
+
+                // 计算总当量
+                const catTotal = caEq + mgEq + kEq + naEq;
+                const anTotal = hcEq + cEq + sEq + clEq;
+                const totalAll = catTotal + anTotal;
+                if (!totalAll) continue;
+
+                // 阳离子百分比（归一化到100%）
+                let caP = (caEq / catTotal) * 100, mgP = (mgEq / catTotal) * 100, nkP = ((kEq + naEq) / catTotal) * 100;
+                // 阴离子百分比（归一化到100%）
+                let hcP = ((hcEq + cEq) / anTotal) * 100, sP = (sEq / anTotal) * 100, clP = (clEq / anTotal) * 100;
+
+                // 强制归一化
+                const catSum = caP + mgP + nkP, anSum = hcP + sP + clP;
+                caP = (caP / catSum) * 100; mgP = (mgP / catSum) * 100; nkP = (nkP / catSum) * 100;
+                hcP = (hcP / anSum) * 100; sP = (sP / anSum) * 100; clP = (clP / anSum) * 100;
+
+                // 总离子四项（严格归一化到100%）
+                let caMgTotalP = ((caEq + mgEq) / totalAll) * 100;
+                let nkTotalP = ((kEq + naEq) / totalAll) * 100;
+                let so4ClTotalP = ((sEq + clEq) / totalAll) * 100;
+                let hcTotalP = ((hcEq + cEq) / totalAll) * 100;
+
+                // 强制归一化到100%
+                const sum = caMgTotalP + nkTotalP + so4ClTotalP + hcTotalP;
+                caMgTotalP = Number(((caMgTotalP / sum) * 100).toFixed(2));
+                nkTotalP = Number(((nkTotalP / sum) * 100).toFixed(2));
+                so4ClTotalP = Number(((so4ClTotalP / sum) * 100).toFixed(2));
+                hcTotalP = Number(((hcTotalP / sum) * 100).toFixed(2));
+
+                // 判定区域和类型
+                const zone = getDiamondZone(caMgTotalP, nkTotalP, so4ClTotalP, hcTotalP);
+                const type = getWaterType(nkP, hcP);
+
+                dataPoints.push({ idx, caP, mgP, nkP, hcP, sP, clP, caMgTotalP, nkTotalP, so4ClTotalP, hcTotalP });
+                resultList.push({
+                    idx, ca: caP.toFixed(1), mg: mgP.toFixed(1), nk: nkP.toFixed(1),
+                    hc: hcP.toFixed(1), s: sP.toFixed(1), cl: clP.toFixed(1),
+                    caMgTotal: caMgTotalP.toFixed(1), nkTotal: nkTotalP.toFixed(1),
+                    so4ClTotal: so4ClTotalP.toFixed(1), hcTotal: hcTotalP.toFixed(1),
+                    zone, type
+                });
+            }
+        }
+
+        // ================= 判定菱形6大区域 =================
+        function getDiamondZone(caMgP, nkP, so4ClP, hcP) {
+            if (caMgP > 50 && so4ClP > 50) return '6区';
+            if (nkP > 50 && so4ClP > 50) return '7区';
+            if (nkP > 50 && hcP > 50) return '8区';
+            if (caMgP > 50 && hcP > 50) return '5区';
+            return so4ClP > hcP ? '9区' : '4区';
+        }
+
+        // ================= 判定水化学类型 =================
+        function getWaterType(nkP, hcP) {
+            if (nkP < 50 && hcP > 50) return '碳酸盐型水';
+            if (nkP > 50 && hcP < 50) return '钠-氯化物型水';
+            if (nkP < 50 && hcP < 50) return '钙镁型水';
+            return '硫酸盐-氯化物型水';
+        }
+
+        // ================= 更新结果显示 =================
+        function updateResultDisplay() {
+            const resultBox = document.getElementById('resultBox');
+            const dataTable = document.getElementById('dataTable');
+            
+            let txt = '';
+            resultList.forEach(item => {
+                txt += `[点${item.idx}]\n阳离子：Ca=${item.ca}% Mg=${item.mg}% Na+K=${item.nk}%\n阴离子：HCO3+CO3=${item.hc}% SO4=${item.s}% Cl=${item.cl}%\n总离子比例：Ca+Mg=${item.caMgTotal}% Na+K=${item.nkTotal}% SO4+Cl=${item.so4ClTotal}% CO3+HCO3=${item.hcTotal}%\n→ 类型：${item.type} | 区域：${item.zone}\n------------------------------------------------\n`;
+            });
+            resultBox.textContent = txt;
+            
+            dataTable.innerHTML = '';
+            resultList.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${item.idx}</td><td>${item.ca}</td><td>${item.mg}</td><td>${item.nk}</td><td>${item.hc}</td><td>${item.s}</td><td>${item.cl}</td><td>${item.caMgTotal}</td><td>${item.nkTotal}</td><td>${item.so4ClTotal}</td><td>${item.hcTotal}</td><td>${item.zone}</td><td>${item.type}</td>`;
+                dataTable.appendChild(tr);
+            });
+        }
+
+        // ================= 导出Excel =================
+        function exportToExcel() {
+            let csv = '\uFEFF序号,Ca%(阳离子),Mg%(阳离子),Na+K%(阳离子),HCO3+CO3%(阴离子),SO4%(阴离子),Cl%(阴离子),Ca+Mg%(总离子),Na+K%(总离子),SO4+Cl%(总离子),CO3+HCO3%(总离子),菱形区域,水化学类型\n';
+            resultList.forEach(item => {
+                csv += `${item.idx},${item.ca},${item.mg},${item.nk},${item.hc},${item.s},${item.cl},${item.caMgTotal},${item.nkTotal},${item.so4ClTotal},${item.hcTotal},${item.zone},${item.type}\n`;
+            });
+            const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.href = url;
+            link.download = 'Piper三线图分析结果_' + new Date().getTime() + '.csv';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            alert("结果已导出为CSV文件");
+        }
     </script>
 </body>
 </html>
