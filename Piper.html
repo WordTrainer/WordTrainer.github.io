@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Piper三线图（几何精准版-最终版）</title>
+    <title>地下水Piper三线图+专业水化学分类（苏林法）</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -51,6 +52,14 @@
             background: #2980b9;
         }
 
+        .btn-danger {
+            background: #e74c3c;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
         .plot-container {
             width: 100%;
             height: 800px;
@@ -59,6 +68,50 @@
             margin-bottom: 15px;
             position: relative;
             overflow: hidden;
+        }
+
+        .legend {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            font-size: 12px;
+            z-index: 10;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            gap: 8px;
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 1px solid #000;
+        }
+
+        .legend-tri {
+            width: 12px;
+            height: 12px;
+            clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+            border: 1px solid #000;
+        }
+
+        .chem-type-label {
+            position: absolute;
+            background: rgba(255,255,255,0.95);
+            padding: 8px 12px;
+            border-radius: 4px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+            font-size: 12px;
+            z-index: 15;
+            border-left: 3px solid #3498db;
         }
 
         #piperCanvas {
@@ -85,6 +138,7 @@
             padding: 10px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             overflow-x: auto;
+            margin-bottom: 20px;
         }
 
         table {
@@ -101,28 +155,116 @@
 
         th {
             background: #e7f5ff;
+            position: sticky;
+            top: 0;
+        }
+
+        tr.error-row {
+            background: #ffebee;
         }
 
         #fileInput {
+            display: none;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 20;
+            display: none;
+            max-width: 300px;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 16px;
+            color: #3498db;
             display: none;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2 class="title">地下水 Piper 三线图分析（几何精准版-最终版）</h2>
+        <h2 class="title">地下水 Piper 三线图 + 专业水化学分类（苏林法）</h2>
 
         <div class="btn-bar">
             <button id="importExcelBtn" class="btn">📂 导入Excel/CSV数据</button>
-            <button id="showZoneBtn" class="btn">🟡 显示6大区域划分</button>
-            <button id="hideZoneBtn" class="btn">⚪ 清除分区</button>
+            <button id="showZoneBtn" class="btn">🟡 显示6/9区划分</button>
+            <button id="show4ZoneBtn" class="btn">🟢 显示基础4区划分</button>
+            <button id="showChemTypeBtn" class="btn">🔵 显示水化学类型标注</button>
+            <button id="hideZoneBtn" class="btn">⚪ 清除分区/标注</button>
             <button id="saveImgBtn" class="btn">🖼️ 导出PNG图片</button>
             <button id="saveExcelBtn" class="btn">📄 导出结果Excel</button>
+            <button id="clearDataBtn" class="btn btn-danger">🗑️ 清除所有数据</button>
         </div>
 
         <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
 
         <div class="plot-container">
+            <div class="loading" id="loading">数据处理中，请稍候...</div>
+            <div class="tooltip" id="tooltip"></div>
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-tri" style="background: #0066CC;"></div>
+                    <span>阳离子三角点</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-tri" style="background: #cc3333;"></div>
+                    <span>阴离子三角点</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #f39c12;"></div>
+                    <span>菱形域特征点</span>
+                </div>
+                <div class="legend-item">
+                    <span style="color: #e74c3c; font-weight: bold;">苏林分类说明：</span>
+                </div>
+                <div class="legend-item">
+                    <span>✓ 重碳酸钠型（HCO3->Ca+Mg）</span>
+                </div>
+                <div class="legend-item">
+                    <span>✓ 硫酸钠型（Na>Cl, (Na-Cl)>SO4）</span>
+                </div>
+                <div class="legend-item">
+                    <span>✓ 氯化物型（Cl>Na）</span>
+                </div>
+                <div class="legend-item">
+                    <span>✓ 硫酸镁型（(Cl-Na)<Mg）</span>
+                </div>
+                <div class="legend-item">
+                    <span style="color: #9b59b6; font-weight: bold;">菱形域水化学类型：</span>
+                </div>
+                <div class="legend-item">
+                    <span>◀ 左侧：碳酸盐型水</span>
+                </div>
+                <div class="legend-item">
+                    <span>▶ 右侧：氯化物型水</span>
+                </div>
+                <div class="legend-item">
+                    <span>▲ 顶部：硫酸盐型水</span>
+                </div>
+                <div class="legend-item">
+                    <span>● 中心：混合型水</span>
+                </div>
+                <div class="legend-item">
+                    <span style="color: #e67e22; font-weight: bold;">基础4区规则（中点连线版）：</span>
+                </div>
+                <div class="legend-item">
+                    <span>左上：1、4 | 左下：2、4</span>
+                </div>
+                <div class="legend-item">
+                    <span>右上：1、3 | 右下：2、3</span>
+                </div>
+            </div>
+            <div id="chemTypeLabels" class="chem-type-labels"></div>
             <canvas id="piperCanvas"></canvas>
         </div>
         
@@ -136,15 +278,23 @@
                         <th>Ca%</th>
                         <th>Mg%</th>
                         <th>Na+K%</th>
-                        <th>HCO3+CO3%</th>
-                        <th>SO4%</th>
+                        <th>Ca+Mg%</th>
                         <th>Cl%</th>
-                        <th>Ca+Mg(总离子%)</th>
-                        <th>Na+K(总离子%)</th>
-                        <th>SO4+Cl(总离子%)</th>
-                        <th>CO3+HCO3(总离子%)</th>
-                        <th>所属区域</th>
-                        <th>水化学类型</th>
+                        <th>SO4%</th>
+                        <th>HCO3+CO3%</th>
+                        <th>SO4+Cl%</th>
+                        <th>阳离子总量</th>
+                        <th>阴离子总量</th>
+                        <th>相对误差</th>
+                        <th>矿化度(g/L)</th>
+                        <th>矿化度等级</th>
+                        <th>阴离子组合(>25%)</th>
+                        <th>阳离子组合(>25%)</th>
+                        <th>化学类型命名</th>
+                        <th>苏林法分类</th>
+                        <th>菱形分区（6/9区）</th>
+                        <th>菱形分区（4区）</th>
+                        <th>水化学大类</th>
                     </tr>
                 </thead>
                 <tbody id="dataTable"></tbody>
@@ -153,32 +303,73 @@
     </div>
 
     <script>
-        // ================= 全局变量 =================
         let canvas, ctx;
         let canvasWidth, canvasHeight;
         let scale = 1; 
-        let showZones = false; 
+        let showZones = false;
+        let show4Zones = false;
+        let showChemType = false;
         let dataPoints = []; 
         let resultList = []; 
+        let hoveredPoint = null;
+        let tooltip, loading, chemTypeLabelsContainer;
+        let chemTypeLabels = [];
 
-        // 摩尔质量常量
-        const MOLAR_MASSES = {
-            Ca: 40.08, Mg: 24.31, K: 39.1, Na: 22.99,
-            HCO3: 61.02, CO3: 60.01, SO4: 96.06, Cl: 35.45
+        const EqMass = {
+            Ca: 40.078 / 2,
+            Mg: 24.305 / 2,
+            K: 39.098 / 1,
+            Na: 22.989 / 1,
+            HCO3: 61.018 / 1,
+            CO3: 60.009 / 2,
+            SO4: 96.063 / 2,
+            Cl: 35.453 / 1
         };
 
-        // ================= 页面加载初始化 =================
+        const ColorConfig = {
+            cationTri: '#0066CC',
+            anionTri: '#cc3333',
+            diamondPoint: '#f39c12',
+            diamondZone: {
+                zone5: 'rgba(76, 201, 240, 0.4)',
+                zone6: 'rgba(255, 159, 64, 0.4)',
+                zone7: 'rgba(153, 204, 50, 0.4)',
+                zone8: 'rgba(237, 100, 166, 0.4)',
+                zone9: 'rgba(129, 199, 132, 0.4)'
+            },
+            grid: {
+                cation: '#cce5ff',
+                anion: '#ffe6e6',
+                diamond: '#d9f2e6'
+            },
+            chemType: {
+                carbonate: '#3498db',
+                chloride: '#e74c3c',
+                sulfate: '#f39c12',
+                mixed: '#9b59b6'
+            }
+        };
+
         window.addEventListener('DOMContentLoaded', function() {
             canvas = document.getElementById('piperCanvas');
             ctx = canvas.getContext('2d');
+            tooltip = document.getElementById('tooltip');
+            loading = document.getElementById('loading');
+            chemTypeLabelsContainer = document.getElementById('chemTypeLabels');
+            
             bindEvents();
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
             drawPiperBase();
-            console.log("初始化完成，几何精准版Piper三线图已加载");
+            loadSampleData();
+
+            canvas.addEventListener('mousemove', handleMouseMove);
+            canvas.addEventListener('mouseleave', () => {
+                tooltip.style.display = 'none';
+                hoveredPoint = null;
+            });
         });
 
-        // ================= 调整Canvas尺寸 =================
         function resizeCanvas() {
             const container = canvas.parentElement;
             canvasWidth = container.clientWidth;
@@ -193,53 +384,357 @@
             ctx.scale(dpr, dpr);
             scale = Math.min(canvasWidth / 1800, canvasHeight / 900) * 0.85;
             drawPiperBase();
+            if (showChemType) {
+                drawChemTypeLabels();
+            }
         }
 
-        // ================= 绑定所有事件 =================
         function bindEvents() {
+            document.getElementById('show4ZoneBtn').addEventListener('click', function() {
+                showZones = false;
+                show4Zones = true;
+                showChemType = false;
+                clearChemTypeLabels();
+                drawPiperBase();
+                drawDataPoints();
+            });
+
+            document.getElementById('showZoneBtn').addEventListener('click', function() {
+                show4Zones = false;
+                showZones = true;
+                showChemType = false;
+                clearChemTypeLabels();
+                drawPiperBase();
+                drawDataPoints();
+            });
+
+            document.getElementById('showChemTypeBtn').addEventListener('click', function() {
+                showZones = false;
+                show4Zones = false;
+                showChemType = true;
+                drawPiperBase();
+                drawDataPoints();
+                drawChemTypeLabels();
+            });
+
+            document.getElementById('hideZoneBtn').addEventListener('click', function() {
+                showZones = false;
+                show4Zones = false;
+                showChemType = false;
+                clearChemTypeLabels();
+                drawPiperBase();
+                drawDataPoints();
+            });
+
             document.getElementById('importExcelBtn').addEventListener('click', function() {
                 document.getElementById('fileInput').click();
             });
 
             document.getElementById('fileInput').addEventListener('change', handleFileUpload);
 
-            document.getElementById('showZoneBtn').addEventListener('click', function() {
-                showZones = true;
-                drawPiperBase();
-                drawDataPoints();
-                alert("已显示6大区域划分");
-            });
-
-            document.getElementById('hideZoneBtn').addEventListener('click', function() {
-                showZones = false;
-                drawPiperBase();
-                drawDataPoints();
-                alert("已清除分区");
-            });
-
             document.getElementById('saveImgBtn').addEventListener('click', function() {
-                if (dataPoints.length === 0) {
-                    alert("请先导入数据并绘制图表！");
-                    return;
+                if (dataPoints.length === 0) { 
+                    alert("请先导入数据！"); 
+                    return; 
                 }
-                const link = document.createElement('a');
-                link.download = 'Piper三线图_' + new Date().getTime() + '.png';
-                link.href = canvas.toDataURL('image/png', 1.0);
-                link.click();
-                alert("图片已导出！");
+                loading.style.display = 'block';
+                setTimeout(() => {
+                    const link = document.createElement('a');
+                    link.download = 'Piper三线图_' + new Date().toLocaleString().replace(/[/: ]/g, '_') + '.png';
+                    link.href = canvas.toDataURL('image/png', 1.0);
+                    link.click();
+                    loading.style.display = 'none';
+                    alert("图片已导出！");
+                }, 500);
             });
 
             document.getElementById('saveExcelBtn').addEventListener('click', function() {
-                if (resultList.length === 0) {
-                    alert("暂无分析结果可导出！");
-                    return;
+                if (resultList.length === 0) { 
+                    alert("暂无结果！"); 
+                    return; 
                 }
-                exportToExcel();
+                exportToXLSX();
+            });
+
+            document.getElementById('clearDataBtn').addEventListener('click', function() {
+                if (confirm("确定要清除所有数据吗？")) {
+                    dataPoints = [];
+                    resultList = [];
+                    chemTypeLabels = [];
+                    window.pointData = [];
+                    hoveredPoint = null;
+                    
+                    clearChemTypeLabels();
+                    drawPiperBase();
+                    updateResultDisplay();
+                    document.getElementById('resultBox').textContent = "数据已清除，可重新导入";
+                    document.getElementById('fileInput').value = '';
+                }
             });
         }
 
-        // ================= 核心：绘制Piper三线图（完全满足所有几何约束） =================
+        function calculateSulinType(eqData) {
+            const { CaEq, MgEq, NaEq, KEq, ClEq, SO4Eq, HCO3Eq, CO3Eq } = eqData;
+            
+            const NaTotal = NaEq + KEq;
+            const HCO3Total = HCO3Eq + CO3Eq;
+            const CaMgTotal = CaEq + MgEq;
+
+            const NaClRatio = ClEq === 0 ? Infinity : NaTotal / ClEq;
+            const NaClSO4Ratio = SO4Eq === 0 ? Infinity : (NaTotal - ClEq) / SO4Eq;
+            const ClNaMgRatio = MgEq === 0 ? Infinity : (ClEq - NaTotal) / MgEq;
+            const HCO3CaMgRatio = CaMgTotal === 0 ? Infinity : HCO3Total / CaMgTotal;
+
+            let sulinType = "未分类";
+            if (HCO3CaMgRatio > 1) {
+                sulinType = "重碳酸钠型（HCO3->Ca+Mg）";
+            } else if (NaClRatio > 1 && NaClSO4Ratio > 1) {
+                sulinType = "硫酸钠型（Na>Cl, (Na-Cl)>SO4）";
+            } else if (NaClRatio < 1) {
+                sulinType = "氯化物型（Cl>Na）";
+            } else if (ClNaMgRatio < 1) {
+                sulinType = "硫酸镁型（(Cl-Na)<Mg）";
+            }
+
+            return sulinType;
+        }
+
+        function getChemicalType(dx, dy) {
+            const { diamond } = window.piperLayout || {};
+            if (!diamond) return { type: "未知", color: "#000", desc: "未知类型" };
+
+            const L = diamond[0], T = diamond[1], R = diamond[2], B = diamond[3];
+            const mid50TL = {x: (L.x + T.x)/2, y: (L.y + T.y)/2};
+            const mid50TR = {x: (T.x + R.x)/2, y: (T.y + R.y)/2};
+            const mid50BR = {x: (R.x + B.x)/2, y: (R.y + B.y)/2};
+            const mid50BL = {x: (B.x + L.x)/2, y: (B.y + L.y)/2};
+            const center = CalculateIntersection(mid50TL, mid50BR, mid50TR, mid50BL);
+
+            const distToLeft = Math.hypot(dx - L.x, dy - L.y);
+            const distToRight = Math.hypot(dx - R.x, dy - R.y);
+            const distToTop = Math.hypot(dx - T.x, dy - T.y);
+            const distToBottom = Math.hypot(dx - B.x, dy - B.y);
+            const distToCenter = Math.hypot(dx - center.x, dy - center.y);
+
+            const diagLength = Math.hypot(R.x - L.x, R.y - L.y);
+            const centerThreshold = diagLength / 4;
+
+            if (distToCenter < centerThreshold) {
+                return { 
+                    type: "混合型水", 
+                    color: ColorConfig.chemType.mixed, 
+                    desc: "阴阳离子组合均衡，无明显优势离子" 
+                };
+            } else if (distToLeft < distToRight && distToLeft < distToTop && distToLeft < distToBottom) {
+                return { 
+                    type: "碳酸盐型水", 
+                    color: ColorConfig.chemType.carbonate, 
+                    desc: "HCO3-占优，Na+K+占优，碱性特征明显" 
+                };
+            } else if (distToRight < distToLeft && distToRight < distToTop && distToRight < distToBottom) {
+                return { 
+                    type: "氯化物型水", 
+                    color: ColorConfig.chemType.chloride, 
+                    desc: "Cl-占优，Ca+Mg占优，矿化度较高" 
+                };
+            } else if (distToTop < distToLeft && distToTop < distToRight && distToTop < distToBottom) {
+                return { 
+                    type: "硫酸盐型水", 
+                    color: ColorConfig.chemType.sulfate, 
+                    desc: "SO42-占优，中等矿化度特征" 
+                };
+            } else {
+                return { 
+                    type: "过渡型水", 
+                    color: "#7f8c8d", 
+                    desc: "介于两种主要类型之间的过渡类型" 
+                };
+            }
+        }
+
+        function getCationProjectionRay(catPoint, layout) {
+            if (!layout || !layout.catTri || layout.catTri.length < 3) return null;
+            const CaVertex = layout.catTri[0];
+            const MgVertex = layout.catTri[1];
+            
+            const dirX = MgVertex.x - CaVertex.x;
+            const dirY = MgVertex.y - CaVertex.y;
+            
+            const len = Math.hypot(dirX, dirY);
+            if (len < 1e-6) return null;
+            const unitX = dirX / len;
+            const unitY = dirY / len;
+            
+            return {
+                p1: catPoint,
+                p2: { 
+                    x: catPoint.x + unitX * 2000, 
+                    y: catPoint.y + unitY * 2000 
+                }
+            };
+        }
+
+        function getAnionProjectionRay(aniPoint, layout) {
+            if (!layout || !layout.aniTri || layout.aniTri.length < 3) return null;
+            const SO4Vertex = layout.aniTri[1];
+            const HCO3Vertex = layout.aniTri[2];
+            
+            const dirX = HCO3Vertex.x - SO4Vertex.x;
+            const dirY = HCO3Vertex.y - SO4Vertex.y;
+            
+            const len = Math.hypot(dirX, dirY);
+            if (len < 1e-6) return null;
+            const unitX = dirX / len;
+            const unitY = dirY / len;
+            
+            return {
+                p1: aniPoint,
+                p2: { 
+                    x: aniPoint.x + unitX * 2000, 
+                    y: aniPoint.y + unitY * 2000 
+                }
+            };
+        }
+
+        function isPointInDiamond(dx, dy, diamond) {
+            if (!diamond || diamond.length < 4) return false;
+            const L = diamond[0], T = diamond[1], R = diamond[2], B = diamond[3];
+            const cross1 = crossProduct(L, T, {x:dx, y:dy});
+            const cross2 = crossProduct(T, R, {x:dx, y:dy});
+            const cross3 = crossProduct(R, B, {x:dx, y:dy});
+            const cross4 = crossProduct(B, L, {x:dx, y:dy});
+            
+            const eps = 1e-6;
+            return (cross1 > eps && cross2 > eps && cross3 > eps && cross4 > eps);
+        }
+
+        function crossProduct(p1, p2, p) {
+            if (!p1 || !p2 || !p) return 0;
+            return (p2.x - p1.x) * (p.y - p1.y) - (p2.y - p1.y) * (p.x - p1.x);
+        }
+
+        function pushPointOutOfDiamond(dx, dy, diamond) {
+            if (!diamond || diamond.length < 4) return {x: dx, y: dy};
+            const L = diamond[0], T = diamond[1], R = diamond[2], B = diamond[3];
+            const p = {x: dx, y: dy};
+
+            if (isPointInDiamond(dx, dy, diamond)) return p;
+
+            function distanceToLine(p, p1, p2) {
+                if (!p || !p1 || !p2) return Infinity;
+                return Math.abs((p2.y - p1.y) * p.x - (p2.x - p1.x) * p.y + p2.x * p1.y - p2.y * p1.x) / 
+                       Math.hypot(p2.y - p1.y, p2.x - p1.x);
+            }
+
+            const d1 = distanceToLine(p, L, T);
+            const d2 = distanceToLine(p, T, R);
+            const d3 = distanceToLine(p, R, B);
+            const d4 = distanceToLine(p, B, L);
+
+            const minD = Math.min(d1, d2, d3, d4);
+            let newP = {...p};
+
+            if (minD === d1) {
+                newP = projectPointToLine(p, L, T);
+            } else if (minD === d2) {
+                newP = projectPointToLine(p, T, R);
+            } else if (minD === d3) {
+                newP = projectPointToLine(p, R, B);
+            } else {
+                newP = projectPointToLine(p, B, L);
+            }
+
+            return newP;
+        }
+
+        function projectPointToLine(p, p1, p2) {
+            if (!p || !p1 || !p2) return {x: 0, y: 0};
+            const t = ((p.x - p1.x) * (p2.x - p1.x) + (p.y - p1.y) * (p2.y - p1.y)) / 
+                      ((p2.x - p1.x) **2 + (p2.y - p1.y)** 2);
+            const tClamped = Math.max(0, Math.min(1, t));
+            return {
+                x: p1.x + tClamped * (p2.x - p1.x),
+                y: p1.y + tClamped * (p2.y - p1.y)
+            };
+        }
+
+        function getDiamond69Zone(dx, dy) {
+            const { diamond } = window.piperLayout || {};
+            if (!diamond) return "菱形外";
+
+            const L = diamond[0], T = diamond[1], R = diamond[2], B = diamond[3];
+            const mid50TL = {x: (L.x + T.x)/2, y: (L.y + T.y)/2}; 
+            const mid50TR = {x: (T.x + R.x)/2, y: (T.y + R.y)/2}; 
+            const mid50BR = {x: (R.x + B.x)/2, y: (R.y + B.y)/2}; 
+            const mid50BL = {x: (B.x + L.x)/2, y: (B.y + L.y)/2}; 
+            const center = CalculateIntersection(mid50TL, mid50BR, mid50TR, mid50BL);
+
+            function pointInPolygon(p, vertices) {
+                if (!p || !vertices || vertices.length < 3) return false;
+                let inside = false;
+                const eps = 1e-6;
+                for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+                    const vi = vertices[i], vj = vertices[j];
+                    if (((vi.y - p.y > eps) !== (vj.y - p.y > eps)) &&
+                        (p.x < (vj.x - vi.x) * (p.y - vi.y) / (vj.y - vi.y + eps) + vi.x + eps)) {
+                        inside = !inside;
+                    }
+                }
+                return inside;
+            }
+
+            const zone6 = [mid50TL, T, mid50TR];
+            const zone9_1 = [center, mid50TL, mid50TR];
+            const zone5 = [mid50BL, L, mid50TL, center];
+            const zone7 = [center, mid50TR, R, mid50BR];
+            const zone9_2 = [mid50BR, center, mid50BL];
+            const zone8 = [mid50BL, mid50BR, B];
+
+            const p = { x: dx, y: dy };
+            if (pointInPolygon(p, zone6)) return "6";
+            if (pointInPolygon(p, zone9_1)) return "9";
+            if (pointInPolygon(p, zone5)) return "5";
+            if (pointInPolygon(p, zone7)) return "7";
+            if (pointInPolygon(p, zone9_2)) return "9";
+            if (pointInPolygon(p, zone8)) return "8";
+            return "菱形外";
+        }
+
+        // ====================== 核心修复：4区判定逻辑（修正叉乘方向） ======================
+        function getDiamond4Zone(dx, dy) {
+            const { diamond } = window.piperLayout || {};
+            if (!diamond) return "菱形外";
+
+            const L = diamond[0], T = diamond[1], R = diamond[2], B = diamond[3];
+            const p = { x: dx, y: dy };
+            const eps = 1e-6;
+
+            // 计算四条边的中点（50%位置）
+            const midLT = {x: (L.x + T.x)/2, y: (L.y + T.y)/2}; // 左上侧边中点
+            const midTR = {x: (T.x + R.x)/2, y: (T.y + R.y)/2}; // 右上侧边中点
+            const midRB = {x: (R.x + B.x)/2, y: (R.y + B.y)/2}; // 右下侧边中点
+            const midBL = {x: (B.x + L.x)/2, y: (B.y + L.y)/2}; // 左下侧边中点
+            
+            // 水平线（左中点→右中点）分割上下，垂直线（上中点→下中点）分割左右
+            const horiLine = {p1: midLT, p2: midRB}; // 水平线：分割上下（上=1，下=2）
+            const vertLine = {p1: midTR, p2: midBL}; // 垂直线：分割左右（左=4，右=3）
+            
+            // 【核心修复1】修正叉乘判定方向（反向判断）
+            // 判定点相对于水平线的位置：线下方=1区，线上方=2区（原逻辑反向）
+            const crossHori = crossProduct(horiLine.p1, horiLine.p2, p);
+            let zoneUpDown = crossHori < -eps ? "1" : "2"; // 反向判定
+            
+            // 【核心修复2】修正垂直线叉乘方向
+            // 判定点相对于垂直线的位置：线右侧=4区，线左侧=3区（原逻辑反向）
+            const crossVert = crossProduct(vertLine.p1, vertLine.p2, p);
+            let zoneLeftRight = crossVert < -eps ? "4" : "3"; // 反向判定
+
+            // 最终组合：左上=1、4 | 左下=2、4 | 右上=1、3 | 右下=2、3
+            return `${zoneUpDown}、${zoneLeftRight}`;
+        }
+
         function drawPiperBase() {
+            if (!ctx) return;
             ctx.clearRect(0, 0, canvasWidth, canvasHeight);
             ctx.fillStyle = '#f0f8ff';
             ctx.fillRect(0, 0, canvasWidth, canvasHeight);
@@ -247,610 +742,1049 @@
             const triSide = 320 * scale;
             const sqrt3 = Math.sqrt(3);
             const triHeight = triSide * sqrt3 / 2;
-            const gap = 60 * scale; // 三角形间距，确保菱形不相交
-            
+            const gap = 60 * scale;
             const centerX = canvasWidth / 2;
-            const centerY = canvasHeight / 2 + 80*scale; // 整体下移，给大三角形顶部留空间
+            const centerY = canvasHeight / 2 + 80*scale;
             
-            // ================= 1. 绘制阳离子三角形（Ca-Mg-Na+K） =================
             const catTri = [
-                { x: centerX - triSide - gap, y: centerY + triHeight/2 }, // Ca (左下) - 大三角形左底点
-                { x: centerX - triSide/2 - gap, y: centerY - triHeight/2 }, // Mg (上)
-                { x: centerX - gap, y: centerY + triHeight/2 } // Na+K (右下)
+                { x: centerX - triSide - gap, y: centerY + triHeight/2 },
+                { x: centerX - triSide/2 - gap, y: centerY - triHeight/2 },
+                { x: centerX - gap, y: centerY + triHeight/2 }
             ];
-            drawPolygon(catTri, '#0066CC', 2.5);
-            drawTriangleGrid(catTri, 10, '#cce5ff');
-            drawTriangleScale(catTri, '#0066CC');
-            drawText('Ca', catTri[0].x - 20*scale, catTri[0].y + 10*scale, 14*scale, '#0066CC');
-            drawText('Mg', catTri[1].x, catTri[1].y - 20*scale, 14*scale, '#0066CC');
-            drawText('Na+K', catTri[2].x + 20*scale, catTri[2].y + 10*scale, 14*scale, '#0066CC');
+            drawPolygon(catTri, ColorConfig.cationTri, 2.5);
+            drawTriangleGrid(catTri, 10, ColorConfig.grid.cation);
+            drawTriangleScale(catTri, ColorConfig.cationTri);
+            drawText('Ca²⁺', catTri[0].x - 20*scale, catTri[0].y + 10*scale, 14*scale, ColorConfig.cationTri);
+            drawText('Mg²⁺', catTri[1].x, catTri[1].y - 20*scale, 14*scale, ColorConfig.cationTri);
+            drawText('Na⁺+K⁺', catTri[2].x + 20*scale, catTri[2].y + 10*scale, 14*scale, ColorConfig.cationTri);
             
-            // ================= 2. 绘制阴离子三角形（Cl-SO4-CO3+HCO3） =================
             const aniTri = [
-                { x: centerX + gap, y: centerY + triHeight/2 }, // Cl (左下)
-                { x: centerX + triSide/2 + gap, y: centerY - triHeight/2 }, // SO4 (上)
-                { x: centerX + triSide + gap, y: centerY + triHeight/2 } // CO3+HCO3 (右下) - 大三角形右底点
+                { x: centerX + gap, y: centerY + triHeight/2 },
+                { x: centerX + triSide/2 + gap, y: centerY - triHeight/2 },
+                { x: centerX + triSide + gap, y: centerY + triHeight/2 }
             ];
-            drawPolygon(aniTri, '#cc3333', 2.5);
-            drawTriangleGrid(aniTri, 10, '#ffe6e6');
-            drawTriangleScale(aniTri, '#cc3333');
-            drawText('Cl', aniTri[0].x - 20*scale, aniTri[0].y + 10*scale, 14*scale, '#cc3333');
-            drawText('SO4', aniTri[1].x, aniTri[1].y - 20*scale, 14*scale, '#cc3333');
-            drawText('CO3+HCO3', aniTri[2].x + 20*scale, aniTri[2].y + 10*scale, 14*scale, '#cc3333');
+            drawPolygon(aniTri, ColorConfig.anionTri, 2.5);
+            drawTriangleGrid(aniTri, 10, ColorConfig.grid.anion);
+            drawTriangleScale(aniTri, ColorConfig.anionTri);
+            drawText('Cl⁻', aniTri[0].x - 20*scale, aniTri[0].y + 10*scale, 14*scale, ColorConfig.anionTri);
+            drawText('SO4²⁻', aniTri[1].x, aniTri[1].y - 20*scale, 14*scale, ColorConfig.anionTri);
+            drawText('HCO3⁻+CO3²⁻', aniTri[2].x + 20*scale, aniTri[2].y + 10*scale, 12*scale, ColorConfig.anionTri);
             
-            // ================= 3. 定义大三角形（完全满足你的要求） =================
-            // 大三角形顶点：
-            // 1. 上顶点：菱形上顶点（两三角形斜边延长线交点）
-            // 2. 左底点：阳离子三角形Ca点
-            // 3. 右底点：阴离子三角形CO3+HCO3点
             const bigTri = [
-                lineIntersection(
-                    { p1: catTri[1], p2: catTri[0] }, // 阳离子三角形左边（Mg→Ca）
-                    { p1: aniTri[1], p2: aniTri[2] }  // 阴离子三角形右边（SO4→CO3+HCO3）
-                ),
-                catTri[0],  // 左底点（Ca）
-                aniTri[2]   // 右底点（CO3+HCO3）
+                lineIntersection({ p1: catTri[1], p2: catTri[0] },{ p1: aniTri[1], p2: aniTri[2] }),
+                catTri[0],
+                aniTri[2]
             ];
-            // 绘制大三角形轮廓（虚线，便于验证，可删除）
-            ctx.strokeStyle = '#999';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([5, 5]);
-            drawPolygon(bigTri, '#999', 1);
-            ctx.setLineDash([]);
+            ctx.strokeStyle = '#999'; ctx.lineWidth = 1; ctx.setLineDash([5,5]);
+            drawPolygon(bigTri, '#999',1); ctx.setLineDash([]);
 
-            // ================= 4. 计算菱形顶点（100%满足所有几何约束） =================
-            // 约束1：菱形上下顶点在阴阳离子三角形的共同竖直对称轴（centerX）上
-            // 约束2：菱形左/右边线分别与阳离子三角形左边、阴离子三角形右边共线
-            // 约束3：菱形与阴阳离子三角形不重叠、不相交
-            // 约束4：菱形下顶点高于阴阳离子三角形底边
-
-            // 菱形上顶点：严格等于大三角形上顶点
             const diamondTop = bigTri[0];
-            // 菱形下顶点：在对称轴上，高于三角形底边（y坐标 = 三角形底边y - 40*scale）
-            const diamondBottom = {
-                x: centerX,
-                y: centerY + triHeight/2 - 40*scale
-            };
-
-            // 菱形左顶点：在阳离子三角形左边（Mg→Ca）上，y坐标 = 上下顶点中点y
+            const diamondBottom = { x: centerX, y: centerY + triHeight/2 - 40*scale };
             const midY = (diamondTop.y + diamondBottom.y) / 2;
+            
             const catLineParam = (midY - catTri[1].y) / (catTri[0].y - catTri[1].y);
             const diamondLeft = {
-                x: catTri[1].x + catLineParam * (catTri[0].x - catTri[1].x),
+                x: catTri[1].x + catLineParam * (catTri[0].x - catTri[1].x), 
                 y: midY
             };
-
-            // 菱形右顶点：在阴离子三角形右边（SO4→CO3+HCO3）上，y坐标 = 上下顶点中点y
+            
             const aniLineParam = (midY - aniTri[1].y) / (aniTri[2].y - aniTri[1].y);
             const diamondRight = {
-                x: aniTri[1].x + aniLineParam * (aniTri[2].x - aniTri[1].x),
+                x: aniTri[1].x + aniLineParam * (aniTri[2].x - aniTri[1].x), 
                 y: midY
             };
-
-            // 最终菱形顶点（顺序：左→上→右→下）
-            const diamond = [diamondLeft, diamondTop, diamondRight, diamondBottom];
             
-            // 验证所有几何约束（控制台输出）
-            verifyAllConstraints(diamond, catTri, aniTri, bigTri, centerX);
+            const diamond = [diamondLeft, diamondTop, diamondRight, diamondBottom];
 
-            // ================= 5. 绘制菱形 =================
-            drawPolygon(diamond, '#339966', 2.5);
-            drawDiamondGrid(diamond, 10, '#d9f2e6');
+            drawPolygon(diamond, '#339966', 3);
+            drawDiamondGrid(diamond, 10, ColorConfig.grid.diamond);
             drawDiamondScale(diamond, '#339966');
             
-            // 菱形文字标注（完全匹配你的布局）
-            drawText('SO4+Cl', diamond[1].x, diamond[1].y - 20*scale, 12*scale, '#339966'); // 上：SO4+Cl%
-            drawText('Na+K', diamond[0].x - 30*scale, diamond[0].y, 12*scale, '#339966'); // 左：Na+K%
-            drawText('Ca+Mg', diamond[2].x + 30*scale, diamond[2].y, 12*scale, '#339966'); // 右：Ca+Mg%
-            drawText('CO3+HCO3', diamond[3].x, diamond[3].y + 20*scale, 12*scale, '#339966'); // 下：CO3+HCO3%
+            // 修正关键文本标注
+            drawText('SO4²⁻+Cl⁻ (0%)\n(硫酸盐型)', diamond[1].x, diamond[1].y - 30*scale, 12*scale, '#339966'); 
+            drawText('Ca²⁺+Mg²⁺ (100%)\n(氯化物型)', diamond[2].x + 10*scale, diamond[2].y + 10*scale, 12*scale, '#339966'); 
+            drawText('Na⁺+K⁺ (100%)\n(碳酸盐型)', diamond[0].x - 10*scale, diamond[0].y - 10*scale, 12*scale, '#339966'); 
+            drawText('HCO3⁻+CO3²⁻ (100%)\n(重碳酸盐型)', diamond[3].x, diamond[3].y + 30*scale, 12*scale, '#339966'); 
             
-            // 绘制6大分区（适配精准布局）
-            if (showZones) {
-                drawDiamondZones(diamond, centerX, centerY);
-            }
+            // 50%数值标注（完全匹配参考图位置）
+            const midLT = {x: (diamond[0].x + diamond[1].x)/2, y: (diamond[0].y + diamond[1].y)/2}; // 左上侧边中点
+            const midTR = {x: (diamond[1].x + diamond[2].x)/2, y: (diamond[1].y + diamond[2].y)/2}; // 右上侧边中点
+            const midRB = {x: (diamond[2].x + diamond[3].x)/2, y: (diamond[2].y + diamond[3].y)/2}; // 右下侧边中点
+            const midBL = {x: (diamond[3].x + diamond[0].x)/2, y: (diamond[3].y + diamond[0].y)/2}; // 左下侧边中点
             
-            // 保存布局信息
-            window.piperLayout = { 
-                catTri, aniTri, diamond, bigTri, triSide, triHeight, sqrt3, 
-                centerX, centerY, gap
-            };
+            drawText('50', midLT.x - 10*scale, midLT.y - 5*scale, 10*scale, '#000');  // 左上侧边50
+            drawText('50', midTR.x + 10*scale, midTR.y - 5*scale, 10*scale, '#000');  // 右上侧边50
+            drawText('50', midRB.x + 10*scale, midRB.y + 5*scale, 10*scale, '#000');  // 右下侧边50
+            drawText('50', midBL.x - 10*scale, midBL.y + 5*scale, 10*scale, '#000');  // 左下侧边50
+            
+            const center = CalculateIntersection(midLT, midRB, midTR, midBL);
+            drawText('混合型水', center.x, center.y, 12*scale, ColorConfig.chemType.mixed);
+            
+            if (showZones) drawDiamondZones(diamond);
+            else if (show4Zones) draw4ZoneBase(diamond); 
+            else if (showChemType) drawChemTypeBackground(diamond);
+            
+            window.piperLayout = { catTri, aniTri, diamond, triSide, triHeight, sqrt3, centerX, centerY, gap, bigTri };
         }
 
-        // ================= 核心：计算两条直线的精确交点 =================
-        function lineIntersection(line1, line2) {
-            const x1 = line1.p1.x, y1 = line1.p1.y;
-            const x2 = line1.p2.x, y2 = line1.p2.y;
-            const x3 = line2.p1.x, y3 = line2.p1.y;
-            const x4 = line2.p2.x, y4 = line2.p2.y;
+        // ====================== 同步修复：4区可视化标注位置 ======================
+        function draw4ZoneBase(diamond) {
+            if (!ctx || !diamond || diamond.length < 4) return;
+            const L = diamond[0], T = diamond[1], R = diamond[2], B = diamond[3];
 
+            // 计算四条边的中点（50%位置）
+            const midLT = {x: (L.x + T.x)/2, y: (L.y + T.y)/2}; // 左上侧边中点
+            const midTR = {x: (T.x + R.x)/2, y: (T.y + R.y)/2}; // 右上侧边中点
+            const midRB = {x: (R.x + B.x)/2, y: (R.y + B.y)/2}; // 右下侧边中点
+            const midBL = {x: (B.x + L.x)/2, y: (B.y + L.y)/2}; // 左下侧边中点
+
+            // 绘制水平线（左中点→右中点）和垂直线（上中点→下中点）
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([8, 4]);
+            drawLine(midLT, midRB);  // 水平线（分割上下：上=1，下=2）
+            drawLine(midTR, midBL);  // 垂直线（分割左右：左=4，右=3）
+            ctx.setLineDash([]);
+
+            // 计算中线交点（几何中心）
+            const center = CalculateIntersection(midLT, midRB, midTR, midBL);
+            
+            // 【同步修复】调整标注位置，确保和判定逻辑一致
+            ctx.font = `bold ${12*scale}px Microsoft YaHei`;
+            ctx.textAlign = "center";
+            ctx.fillStyle = "#000";
+
+            // 左上分区（1、4）- 匹配参考图位置
+            const zone14Center = {x: (L.x + T.x + center.x)/3, y: (L.y + T.y + center.y)/3};
+            drawText("1、4", zone14Center.x - 10*scale, zone14Center.y - 10*scale, 12*scale, "#000");
+
+            // 左下分区（2、4）- 匹配参考图位置
+            const zone24Center = {x: (L.x + B.x + center.x)/3, y: (L.y + B.y + center.y)/3};
+            drawText("2、4", zone24Center.x - 10*scale, zone24Center.y + 10*scale, 12*scale, "#000");
+
+            // 右上分区（1、3）- 匹配参考图位置
+            const zone13Center = {x: (T.x + R.x + center.x)/3, y: (T.y + R.y + center.y)/3};
+            drawText("1、3", zone13Center.x + 10*scale, zone13Center.y - 10*scale, 12*scale, "#000");
+
+            // 右下分区（2、3）- 匹配参考图位置
+            const zone23Center = {x: (R.x + B.x + center.x)/3, y: (R.y + B.y + center.y)/3};
+            drawText("2、3", zone23Center.x + 10*scale, zone23Center.y + 10*scale, 12*scale, "#000");
+
+            // 重新标注50%中点（匹配参考图位置）
+            ctx.fillStyle = "#000";
+            drawText('50', midLT.x - 10*scale, midLT.y - 5*scale, 10*scale, '#000');  // 左上侧边50
+            drawText('50', midTR.x + 10*scale, midTR.y - 5*scale, 10*scale, '#000');  // 右上侧边50
+            drawText('50', midRB.x + 10*scale, midRB.y + 5*scale, 10*scale, '#000');  // 右下侧边50
+            drawText('50', midBL.x - 10*scale, midBL.y + 5*scale, 10*scale, '#000');  // 左下侧边50
+            
+            // 百分比刻度标注（增强可读性）
+            const scalePoints = [
+                {pos: {x: L.x + (T.x-L.x)*0.1, y: L.y + (T.y-L.y)*0.1}, text: "10%"},
+                {pos: {x: L.x + (T.x-L.x)*0.2, y: L.y + (T.y-L.y)*0.2}, text: "20%"},
+                {pos: {x: L.x + (T.x-L.x)*0.3, y: L.y + (T.y-L.y)*0.3}, text: "30%"},
+                {pos: {x: L.x + (T.x-L.x)*0.4, y: L.y + (T.y-L.y)*0.4}, text: "40%"},
+                {pos: {x: L.x + (T.x-L.x)*0.6, y: L.y + (T.y-L.y)*0.6}, text: "60%"},
+                {pos: {x: L.x + (T.x-L.x)*0.7, y: L.y + (T.y-L.y)*0.7}, text: "70%"},
+                {pos: {x: L.x + (T.x-L.x)*0.8, y: L.y + (T.y-L.y)*0.8}, text: "80%"},
+                {pos: {x: L.x + (T.x-L.x)*0.9, y: L.y + (T.y-L.y)*0.9}, text: "90%"},
+                {pos: {x: T.x + (R.x-T.x)*0.1, y: T.y + (R.y-T.y)*0.1}, text: "90%"},
+                {pos: {x: T.x + (R.x-T.x)*0.2, y: T.y + (R.y-T.y)*0.2}, text: "80%"},
+                {pos: {x: T.x + (R.x-T.x)*0.3, y: T.y + (R.y-T.y)*0.3}, text: "70%"},
+                {pos: {x: T.x + (R.x-T.x)*0.4, y: T.y + (R.y-T.y)*0.4}, text: "60%"},
+                {pos: {x: T.x + (R.x-T.x)*0.6, y: T.y + (R.y-T.y)*0.6}, text: "40%"},
+                {pos: {x: T.x + (R.x-T.x)*0.7, y: T.y + (R.y-T.y)*0.7}, text: "30%"},
+                {pos: {x: T.x + (R.x-T.x)*0.8, y: T.y + (R.y-T.y)*0.8}, text: "20%"},
+                {pos: {x: T.x + (R.x-T.x)*0.9, y: T.y + (R.y-T.y)*0.9}, text: "10%"},
+                {pos: {x: R.x + (B.x-R.x)*0.1, y: R.y + (B.y-R.y)*0.1}, text: "10%"},
+                {pos: {x: R.x + (B.x-R.x)*0.2, y: R.y + (B.y-R.y)*0.2}, text: "20%"},
+                {pos: {x: R.x + (B.x-R.x)*0.3, y: R.y + (B.y-R.y)*0.3}, text: "30%"},
+                {pos: {x: R.x + (B.x-R.x)*0.4, y: R.y + (B.y-R.y)*0.4}, text: "40%"},
+                {pos: {x: R.x + (B.x-R.x)*0.6, y: R.y + (B.y-R.y)*0.6}, text: "60%"},
+                {pos: {x: R.x + (B.x-R.x)*0.7, y: R.y + (B.y-R.y)*0.7}, text: "70%"},
+                {pos: {x: R.x + (B.x-R.x)*0.8, y: R.y + (B.y-R.y)*0.8}, text: "80%"},
+                {pos: {x: R.x + (B.x-R.x)*0.9, y: R.y + (B.y-R.y)*0.9}, text: "90%"},
+                {pos: {x: B.x + (L.x-B.x)*0.1, y: B.y + (L.y-B.y)*0.1}, text: "90%"},
+                {pos: {x: B.x + (L.x-B.x)*0.2, y: B.y + (L.y-B.y)*0.2}, text: "80%"},
+                {pos: {x: B.x + (L.x-B.x)*0.3, y: B.y + (L.y-B.y)*0.3}, text: "70%"},
+                {pos: {x: B.x + (L.x-B.x)*0.4, y: B.y + (L.y-B.y)*0.4}, text: "60%"},
+                {pos: {x: B.x + (L.x-B.x)*0.6, y: B.y + (L.y-B.y)*0.6}, text: "40%"},
+                {pos: {x: B.x + (L.x-B.x)*0.7, y: B.y + (L.y-B.y)*0.7}, text: "30%"},
+                {pos: {x: B.x + (L.x-B.x)*0.8, y: B.y + (L.y-B.y)*0.8}, text: "20%"},
+                {pos: {x: B.x + (L.x-B.x)*0.9, y: B.y + (L.y-B.y)*0.9}, text: "10%"}
+            ];
+            scalePoints.forEach(sp => {
+                drawText(sp.text, sp.pos.x, sp.pos.y, 8*scale, '#000');
+            });
+            
+            // 顶点标注
+            drawText('SO4²⁻+Cl⁻ (0%)', T.x, T.y - 15*scale, 10*scale, '#000');
+            drawText('Ca²⁺+Mg²⁺ (100%)', R.x + 15*scale, R.y, 10*scale, '#000');
+            drawText('Na⁺+K⁺ (100%)', L.x - 15*scale, L.y, 10*scale, '#000');
+            drawText('HCO3⁻+CO3²⁻ (100%)', B.x, B.y + 15*scale, 10*scale, '#000');
+        }
+
+        function drawChemTypeBackground(diamond) {
+            if (!ctx || !diamond || diamond.length < 4) return;
+            const L = diamond[0], T = diamond[1], R = diamond[2], B = diamond[3];
+            const mid50TL = {x: (L.x + T.x)/2, y: (L.y + T.y)/2};
+            const mid50TR = {x: (T.x + R.x)/2, y: (T.y + R.y)/2};
+            const mid50BR = {x: (R.x + B.x)/2, y: (R.y + B.y)/2};
+            const mid50BL = {x: (B.x + L.x)/2, y: (B.y + L.y)/2};
+            const center = CalculateIntersection(mid50TL, mid50BR, mid50TR, mid50BL);
+
+            const regions = [
+                { pts: [L, mid50TL, center, mid50BL], color: 'rgba(52, 152, 219, 0.2)' },
+                { pts: [R, mid50TR, center, mid50BR], color: 'rgba(231, 76, 60, 0.2)' },
+                { pts: [T, mid50TL, center, mid50TR], color: 'rgba(243, 156, 18, 0.2)' },
+                { pts: [mid50TL, mid50TR, mid50BR, mid50BL], color: 'rgba(155, 89, 182, 0.2)' },
+                { pts: [B, mid50BL, center, mid50BR], color: 'rgba(149, 165, 166, 0.2)' }
+            ];
+
+            regions.forEach(reg => {
+                if (!reg || !reg.pts || reg.pts.length < 3) return;
+                ctx.fillStyle = reg.color; 
+                ctx.beginPath();
+                ctx.moveTo(reg.pts[0].x, reg.pts[0].y);
+                reg.pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+                ctx.closePath(); 
+                ctx.fill();
+            });
+
+            ctx.strokeStyle = '#000'; 
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 2]); 
+            drawLine(L, R);
+            drawLine(T, B);
+            ctx.setLineDash([]);
+        }
+
+        function drawChemTypeLabels() {
+    clearChemTypeLabels();
+    
+    if (!dataPoints || dataPoints.length === 0) return;
+    const layout = window.piperLayout;
+    if (!layout) return;
+
+    // 定义画布安全边界（避免标注超出可视区域）
+    const canvasPadding = 20;
+    const labelWidth = 180;  // 标注框宽度
+    const labelHeight = 60;  // 标注框高度
+
+    dataPoints.forEach(p => {
+        if (!p) return;
+        
+        const resultItem = resultList.find(item => item.idx === p.idx);
+        if (!resultItem || !resultItem.diamondX || !resultItem.diamondY) return;
+
+        const chemType = getChemicalType(resultItem.diamondX, resultItem.diamondY);
+        
+        const label = document.createElement('div');
+        label.className = 'chem-type-label';
+        
+        // 核心：智能计算标注位置，避免超出画布
+        let labelX = resultItem.diamondX + 10;
+        let labelY = resultItem.diamondY + 10;
+
+        // 右侧边界检查：如果标注超出右侧，显示在左侧
+        if (labelX + labelWidth > canvasWidth - canvasPadding) {
+            labelX = resultItem.diamondX - labelWidth - 10;
+        }
+
+        // 左侧边界检查：如果标注超出左侧，显示在右侧
+        if (labelX < canvasPadding) {
+            labelX = resultItem.diamondX + 10;
+        }
+
+        // 顶部边界检查：如果标注超出顶部，显示在下方
+        if (labelY < canvasPadding) {
+            labelY = resultItem.diamondY + 10;
+        }
+
+        // 底部边界检查：如果标注超出底部，显示在上方
+        if (labelY + labelHeight > canvasHeight - canvasPadding) {
+            labelY = resultItem.diamondY - labelHeight - 10;
+        }
+
+        // 设置标注最终位置
+        label.style.left = `${labelX}px`;
+        label.style.top = `${labelY}px`;
+        label.style.borderLeftColor = chemType.color;
+        label.style.maxWidth = `${labelWidth}px`;  // 限制最大宽度
+        label.style.zIndex = 20;  // 提高层级确保可见
+        label.innerHTML = `
+            <div style="font-weight:bold; color:${chemType.color};">点位 ${p.idx}：${chemType.type}</div>
+            <div style="font-size:10px; color:#666; line-height:1.2;">${chemType.desc}</div>
+            <div style="font-size:10px; color:#e67e22; margin-top:4px;">4区归属：${resultItem.zone4 || '未知'}</div>
+        `;
+
+        chemTypeLabels.push({
+            element: label,
+            pointIdx: p.idx,
+            x: resultItem.diamondX,
+            y: resultItem.diamondY
+        });
+
+        chemTypeLabelsContainer.appendChild(label);
+    });
+}
+
+// 同步修改clearChemTypeLabels函数（确保清理逻辑正常）
+function clearChemTypeLabels() {
+    if (!chemTypeLabelsContainer) return;
+    chemTypeLabels.forEach(item => {
+        if (item.element && item.element.parentNode) {
+            item.element.parentNode.removeChild(item.element);
+        }
+    });
+    chemTypeLabels = [];
+    chemTypeLabelsContainer.innerHTML = '';
+}
+
+// 补充样式优化（在原有style标签内添加）
+// .chem-type-label {
+//     position: absolute;
+//     background: rgba(255,255,255,0.95);
+//     padding: 8px 12px;
+//     border-radius: 4px;
+//     box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+//     font-size: 12px;
+//     z-index: 15;
+//     border-left: 3px solid #3498db;
+//     white-space: nowrap;  /* 新增：防止文字换行混乱 */
+//     pointer-events: none; /* 新增：避免遮挡鼠标交互 */
+//     transition: all 0.2s; /* 新增：平滑位置调整 */
+// }
+
+        function clearChemTypeLabels() {
+            if (!chemTypeLabelsContainer) return;
+            chemTypeLabels.forEach(item => {
+                if (item.element && item.element.parentNode) {
+                    item.element.parentNode.removeChild(item.element);
+                }
+            });
+            chemTypeLabels = [];
+            chemTypeLabelsContainer.innerHTML = '';
+        }
+
+        function lineIntersection(line1, line2) {
+            if (!line1 || !line2 || !line1.p1 || !line1.p2 || !line2.p1 || !line2.p2) return null;
+            const x1 = line1.p1.x, y1 = line1.p1.y, x2 = line1.p2.x, y2 = line1.p2.y;
+            const x3 = line2.p1.x, y3 = line2.p1.y, x4 = line2.p2.x, y4 = line2.p2.y;
             const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
             if (Math.abs(denom) < 1e-10) return null;
-
             const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
-            return {
-                x: x1 + t * (x2 - x1),
-                y: y1 + t * (y2 - y1)
-            };
+            return { x: x1 + t*(x2-x1), y: y1 + t*(y2-y1) };
         }
 
-        // ================= 核心：验证所有几何约束 =================
-        function verifyAllConstraints(diamond, catTri, aniTri, bigTri, centerX) {
-            console.log("=== 所有几何约束验证 ===");
-            
-            // 1. 上下顶点在竖直对称轴上
-            const topOnAxis = Math.abs(diamond[1].x - centerX) < 1e-5;
-            const bottomOnAxis = Math.abs(diamond[3].x - centerX) < 1e-5;
-            console.log(`✅ 上下顶点在对称轴：上${topOnAxis ? '是' : '否'}，下${bottomOnAxis ? '是' : '否'}`);
-
-            // 2. 左右顶点在对应三角形边上
-            const leftOnCatLine = isPointOnLine(diamond[0], catTri[1], catTri[0]);
-            const rightOnAniLine = isPointOnLine(diamond[2], aniTri[1], aniTri[2]);
-            console.log(`✅ 左右顶点在对应边：左${leftOnCatLine ? '是' : '否'}，右${rightOnAniLine ? '是' : '否'}`);
-
-            // 3. 菱形与三角形不相交
-            const noIntersection = checkNoIntersection(diamond, catTri, aniTri);
-            console.log(`✅ 菱形与三角形不相交：${noIntersection ? '是' : '否'}`);
-
-            // 4. 下顶点高于三角形底边
-            const triBottomY = catTri[0].y;
-            const bottomAbove = diamond[3].y < triBottomY;
-            console.log(`✅ 下顶点高于底边：${bottomAbove ? '是' : '否'}`);
-
-            // 5. 菱形上顶点是大三角形上顶点
-            const topMatch = Math.abs(diamond[1].x - bigTri[0].x) < 1e-5 && Math.abs(diamond[1].y - bigTri[0].y) < 1e-5;
-            console.log(`✅ 上顶点匹配大三角形顶点：${topMatch ? '是' : '否'}`);
-
-            // 输出顶点坐标
-            console.log("菱形顶点坐标：", diamond.map(p => `(${p.x.toFixed(0)},${p.y.toFixed(0)})`));
-        }
-
-        // ================= 辅助：判断点是否在直线上 =================
         function isPointOnLine(p, p1, p2) {
-            const dist = Math.abs((p2.y - p1.y) * p.x - (p2.x - p1.x) * p.y + p2.x * p1.y - p2.y * p1.x) / 
-                         Math.sqrt(Math.pow(p2.y - p1.y, 2) + Math.pow(p2.x - p1.x, 2));
+            if (!p || !p1 || !p2) return false;
+            const dist = Math.abs((p2.y-p1.y)*p.x - (p2.x-p1.x)*p.y + p2.x*p1.y - p2.y*p1.x) / 
+                         Math.hypot(p2.y-p1.y, p2.x-p1.x);
             return dist < 1e-5;
         }
 
-        // ================= 辅助：检查菱形与三角形是否相交 =================
-        function checkNoIntersection(diamond, catTri, aniTri) {
-            // 计算菱形边界
-            const dMinX = Math.min(...diamond.map(p => p.x));
-            const dMaxX = Math.max(...diamond.map(p => p.x));
-            const dMinY = Math.min(...diamond.map(p => p.y));
-            const dMaxY = Math.max(...diamond.map(p => p.y));
+        function drawDiamondZones(diamond) {
+            if (!ctx || !diamond || diamond.length < 4) return;
+            const L = diamond[0], T = diamond[1], R = diamond[2], B = diamond[3];
+            const mid50TL = {x: (L.x + T.x)/2, y: (L.y + T.y)/2};
+            const mid50TR = {x: (T.x + R.x)/2, y: (T.y + R.y)/2};
+            const mid50BR = {x: (R.x + B.x)/2, y: (R.y + B.y)/2};
+            const mid50BL = {x: (B.x + L.x)/2, y: (B.y + L.y)/2};
+            const center = CalculateIntersection(mid50TL, mid50BR, mid50TR, mid50BL);
 
-            // 计算阳离子三角形边界
-            const cMinX = Math.min(...catTri.map(p => p.x));
-            const cMaxX = Math.max(...catTri.map(p => p.x));
-            const cMinY = Math.min(...catTri.map(p => p.y));
-            const cMaxY = Math.max(...catTri.map(p => p.y));
-
-            // 计算阴离子三角形边界
-            const aMinX = Math.min(...aniTri.map(p => p.x));
-            const aMaxX = Math.max(...aniTri.map(p => p.x));
-            const aMinY = Math.min(...aniTri.map(p => p.y));
-            const aMaxY = Math.max(...aniTri.map(p => p.y));
-
-            // 检查轴对齐包围盒是否重叠
-            const catOverlap = !(dMaxX < cMinX || dMinX > cMaxX || dMaxY < cMinY || dMinY > cMaxY);
-            const aniOverlap = !(dMaxX < aMinX || dMinX > aMaxX || dMaxY < aMinY || dMinY > aMaxY);
-
-            return !catOverlap && !aniOverlap;
-        }
-
-        // ================= 核心：绘制菱形6大分区 =================
-        function drawDiamondZones(diamond, centerX, centerY) {
-            ctx.strokeStyle = '#8B4513';
-            ctx.lineWidth = 2;
-
-            // 计算四个边的中点
-            const midLT = { x: (diamond[0].x + diamond[1].x)/2, y: (diamond[0].y + diamond[1].y)/2 };
-            const midTR = { x: (diamond[1].x + diamond[2].x)/2, y: (diamond[1].y + diamond[2].y)/2 };
-            const midRB = { x: (diamond[2].x + diamond[3].x)/2, y: (diamond[2].y + diamond[3].y)/2 };
-            const midBL = { x: (diamond[3].x + diamond[0].x)/2, y: (diamond[3].y + diamond[0].y)/2 };
-            
-            // 绘制分区分割线
-            drawLine(midLT, midRB);
-            drawLine(midTR, midBL);
-            drawLine(midLT, midTR);
-            drawLine(midRB, midBL);
-
-            // 定义6个区域（完全匹配标准Piper三线图）
-            const zones = [
-                { name: '5区', desc: '碳酸硬度（次生碱度）>50%', color: 'rgba(200, 255, 200, 0.3)',
-                  points: [diamond[0], midLT, midBL, diamond[3]] },
-                { name: '6区', desc: '非碳酸硬度（次生盐度）>50%', color: 'rgba(255, 200, 200, 0.3)',
-                  points: [diamond[0], midLT, midTR, diamond[1]] },
-                { name: '9区', desc: '无阴阳离子均超过50%', color: 'rgba(200, 200, 255, 0.3)',
-                  points: [midLT, midTR, midRB, midBL] },
-                { name: '7区', desc: '非碳酸碱金属（原生盐度）>50%', color: 'rgba(255, 255, 200, 0.3)',
-                  points: [diamond[1], midTR, diamond[2], midRB] },
-                { name: '8区', desc: '碳酸碱金属（原生硬度）>50%', color: 'rgba(255, 200, 255, 0.3)',
-                  points: [diamond[2], midRB, diamond[3], midBL] },
-                { name: '4区', desc: '无阴阳离子均超过50%', color: 'rgba(200, 255, 255, 0.3)',
-                  points: [midRB, midBL, diamond[3]] }
+            const regions = [
+                { pts: [mid50TL, T, mid50TR], color: ColorConfig.diamondZone.zone6, label: "6\n硫酸盐型" },
+                { pts: [center, mid50TL, mid50TR], color: ColorConfig.diamondZone.zone9, label: "9\n混合型" },
+                { pts: [mid50BL, L, mid50TL, center], color: ColorConfig.diamondZone.zone5, label: "5\n碳酸盐型" },
+                { pts: [center, mid50TR, R, mid50BR], color: ColorConfig.diamondZone.zone7, label: "7\n氯化物型" },
+                { pts: [mid50BR, center, mid50BL], color: ColorConfig.diamondZone.zone9, label: "9\n混合型" },
+                { pts: [mid50BL, mid50BR, B], color: ColorConfig.diamondZone.zone8, label: "8\n重碳酸盐型" }
             ];
-            
-            // 绘制每个区域
-            zones.forEach(zone => {
-                ctx.fillStyle = zone.color;
-                ctx.beginPath();
-                ctx.moveTo(zone.points[0].x, zone.points[0].y);
-                for (let i = 1; i < zone.points.length; i++) ctx.lineTo(zone.points[i].x, zone.points[i].y);
-                ctx.closePath();
-                ctx.fill();
-                
-                const cx = zone.points.reduce((s,p)=>s+p.x,0)/zone.points.length;
-                const cy = zone.points.reduce((s,p)=>s+p.y,0)/zone.points.length;
-                ctx.font = `${10*scale}px Microsoft YaHei`;
-                ctx.textAlign = 'center';
-                const txt = `${zone.name}：${zone.desc}`;
-                const w = ctx.measureText(txt).width;
+
+            regions.forEach(reg => {
+                if (!reg || !reg.pts || reg.pts.length < 3) return;
+                ctx.fillStyle = reg.color; ctx.beginPath();
+                ctx.moveTo(reg.pts[0].x, reg.pts[0].y);
+                reg.pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+                ctx.closePath(); ctx.fill();
+            });
+
+            ctx.strokeStyle="#000"; ctx.lineWidth=1.5;
+            ctx.setLineDash([8, 4]); 
+            drawLine(mid50TL, mid50BR);
+            drawLine(mid50TR, mid50BL);
+            drawLine(mid50TL, mid50TR);
+            drawLine(mid50BL, mid50BR);
+            ctx.setLineDash([]); 
+
+            const labelData = [
+                { text:"6\n硫酸盐型", pos:{x:(mid50TL.x+T.x+mid50TR.x)/3, y:(mid50TL.y+T.y+mid50TR.y)/3-15*scale} },
+                { text:"9\n混合型", pos:{x:(center.x+mid50TL.x+mid50TR.x)/3, y:(center.y+mid50TL.y+mid50TR.y)/3} },
+                { text:"5\n碳酸盐型", pos:{x:(mid50BL.x+L.x+mid50TL.x+center.x)/4, y:(mid50BL.y+L.y+mid50TL.y+center.y)/4+15*scale} },
+                { text:"7\n氯化物型", pos:{x:(center.x+mid50TR.x+R.x+mid50BR.x)/4, y:(center.y+mid50TR.y+R.y+mid50BR.y)/4+15*scale} },
+                { text:"9\n混合型", pos:{x:(mid50BR.x+center.x+mid50BL.x)/3, y:(mid50BR.y+center.y+mid50BL.y)/3} },
+                { text:"8\n重碳酸盐型", pos:{x:(mid50BL.x+mid50BR.x+B.x)/3, y:(mid50BL.y+mid50BR.y+B.y)/3+15*scale} }
+            ];
+
+            labelData.forEach(l => {
+                if (!l || !l.pos) return;
                 ctx.fillStyle = 'rgba(255,255,255,0.8)';
-                ctx.fillRect(cx - w/2 -5, cy -15*scale, w+10, 30*scale);
-                ctx.fillStyle = '#000';
-                ctx.fillText(txt, cx, cy);
+                ctx.fillRect(l.pos.x - 15*scale, l.pos.y - 15*scale, 30*scale, 30*scale);
+                drawText(l.text, l.pos.x, l.pos.y, 12*scale, '#000');
             });
         }
 
-        // ================= 绘制三角形网格 =================
-        function drawTriangleGrid(tri, divisions, bgColor) {
-            ctx.fillStyle = bgColor;
-            ctx.beginPath();
-            ctx.moveTo(tri[0].x, tri[0].y);
-            ctx.lineTo(tri[1].x, tri[1].y);
-            ctx.lineTo(tri[2].x, tri[2].y);
-            ctx.closePath();
-            ctx.fill();
+        function drawTriangleGrid(tri, div, color) {
+            if (!ctx || !tri || tri.length < 3) return;
+            ctx.fillStyle=color; ctx.beginPath();
+            ctx.moveTo(tri[0].x,tri[0].y); ctx.lineTo(tri[1].x,tri[1].y); ctx.lineTo(tri[2].x,tri[2].y); ctx.closePath(); ctx.fill();
+            ctx.strokeStyle="#fff"; ctx.lineWidth=0.8;
+            for(let i=1;i<div;i++){
+                const r=i/div; const y=tri[0].y-r*(tri[0].y-tri[1].y);
+                const x1=tri[0].x+r*(tri[1].x-tri[0].x); const x2=tri[2].x-r*(tri[2].x-tri[1].x);
+                drawLine({x:x1,y:y},{x:x2,y:y});
+                const x3=tri[0].x+r*(tri[2].x-tri[0].x); const y3=tri[0].y;
+                const ex1=tri[1].x+r*(tri[2].x-tri[1].x); const ey1=tri[1].y+r*(tri[2].y-tri[1].y);
+                drawLine({x:x3,y:y3},{x:ex1,y:ey1});
+                const x4=tri[2].x-r*(tri[2].x-tri[0].x); const y4=tri[2].y;
+                const ex2=tri[1].x-r*(tri[1].x-tri[0].x); const ey2=tri[1].y+r*(tri[0].y-tri[1].y);
+                drawLine({x:x4,y:y4},{x:ex2,y:ey2});
+            }
+        }
+
+        function drawTriangleScale(tri,color){
+            if (!ctx || !tri || tri.length < 3) return;
+            for(let i=0;i<=10;i++){
+                const r=i/10; const x=tri[0].x+r*(tri[1].x-tri[0].x); const y=tri[0].y+r*(tri[1].y-tri[0].y);
+                drawText(`${i*10}%`,x-25*scale,y-5*scale,10*scale,color);
+            }
+            for(let i=0;i<=10;i++){
+                const r=i/10; const x=tri[1].x+r*(tri[2].x-tri[1].x); const y=tri[1].y+r*(tri[2].y-tri[1].y);
+                drawText(`${i*10}%`,x+25*scale,y-5*scale,10*scale,color);
+            }
+            for(let i=0;i<=10;i++){
+                const r=i/10; const x=tri[2].x+r*(tri[0].x-tri[2].x); const y=tri[2].y+r*(tri[0].y-tri[2].y);
+                drawText(`${i*10}%`,x,y+20*scale,10*scale,color);
+            }
+        }
+
+        function drawDiamondGrid(diamond,div,color){
+            if (!ctx || !diamond || diamond.length < 4) return;
+            ctx.fillStyle=color; ctx.beginPath();
+            ctx.moveTo(diamond[0].x,diamond[0].y); ctx.lineTo(diamond[1].x,diamond[1].y);
+            ctx.lineTo(diamond[2].x,diamond[2].y); ctx.lineTo(diamond[3].x,diamond[3].y); ctx.closePath(); ctx.fill();
+            ctx.strokeStyle="#fff"; ctx.lineWidth=0.8;
+            for(let i=1;i<div;i++){
+                const r=i/div;
+                const y1=diamond[0].y+r*(diamond[1].y-diamond[0].y); const x1=diamond[0].x+r*(diamond[1].x-diamond[0].x);
+                const y2=diamond[3].y+r*(diamond[2].y-diamond[3].y); const x2=diamond[3].x+r*(diamond[2].x-diamond[3].x);
+                drawLine({x:x1,y:y1},{x:x2,y:y2});
+                const y3=diamond[1].y+r*(diamond[2].y-diamond[1].y); const x3=diamond[1].x+r*(diamond[2].x-diamond[1].x);
+                const y4=diamond[0].y+r*(diamond[3].y-diamond[0].y); const x4=diamond[0].x+r*(diamond[3].x-diamond[0].x);
+                drawLine({x:x3,y:y3},{x:x4,y:y4});
+            }
+        }
+
+        function drawDiamondScale(diamond,color){
+            if (!ctx || !diamond || diamond.length < 4) return;
+            for(let i=0;i<=10;i++){
+                const r=i/10; const x=diamond[0].x+r*(diamond[1].x-diamond[0].x); const y=diamond[0].y+r*(diamond[1].y-diamond[0].y);
+                drawText(`${i*10}%`,x-22*scale,y-8*scale,10*scale,color);
+            }
+            for(let i=0;i<=10;i++){
+                const r=i/10; const x=diamond[1].x+r*(diamond[2].x-diamond[1].x); const y=diamond[1].y+r*(diamond[2].y-diamond[1].y);
+                drawText(`${(10-i)*10}%`,x+22*scale,y-8*scale,10*scale,color);
+            }
+            for(let i=0;i<=10;i++){
+                const r=i/10; const x=diamond[2].x+r*(diamond[3].x-diamond[2].x); const y=diamond[2].y+r*(diamond[3].y-diamond[2].y);
+                drawText(`${i*10}%`,x+22*scale,y+8*scale,10*scale,color);
+            }
+            for(let i=0;i<=10;i++){
+                const r=i/10; const x=diamond[3].x+r*(diamond[0].x-diamond[3].x); const y=diamond[3].y+r*(diamond[0].y-diamond[3].y);
+                drawText(`${(10-i)*10}%`,x-22*scale,y+8*scale,10*scale,color);
+            }
+        }
+
+        function drawDataPoints(){
+            if(!ctx || !dataPoints || dataPoints.length === 0) return;
+            const layout = window.piperLayout;
+            if(!layout) return;
             
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 0.8;
-            for (let i = 1; i < divisions; i++) {
-                const r = i / divisions;
-                const y = tri[0].y - r*(tri[0].y - tri[1].y);
-                const x1 = tri[0].x + r*(tri[1].x - tri[0].x);
-                const x2 = tri[2].x - r*(tri[2].x - tri[1].x);
-                drawLine({x:x1,y:y}, {x:x2,y:y});
-                
-                const x3 = tri[0].x + r*(tri[2].x - tri[0].x);
-                const y3 = tri[0].y;
-                const ex1 = tri[1].x + r*(tri[2].x - tri[1].x);
-                const ey1 = tri[1].y + r*(tri[2].y - tri[1].y);
-                drawLine({x:x3,y:y3}, {x:ex1,y:ey1});
-                
-                const x4 = tri[2].x - r*(tri[2].x - tri[0].x);
-                const y4 = tri[2].y;
-                const ex2 = tri[1].x - r*(tri[1].x - tri[0].x);
-                const ey2 = tri[1].y + r*(tri[0].y - tri[1].y);
-                drawLine({x:x4,y:y4}, {x:ex2,y:ey2});
-            }
-        }
-
-        // ================= 绘制三角形刻度 =================
-        function drawTriangleScale(tri, color) {
-            const step = 10;
-            for (let i = 0; i <= 10; i++) {
-                const r = i / 10;
-                const x = tri[0].x + r*(tri[1].x - tri[0].x);
-                const y = tri[0].y + r*(tri[1].y - tri[0].y);
-                drawText(`${i*step}%`, x -25*scale, y -5*scale, 10*scale, color);
-            }
-            for (let i = 0; i <= 10; i++) {
-                const r = i / 10;
-                const x = tri[1].x + r*(tri[2].x - tri[1].x);
-                const y = tri[1].y + r*(tri[2].y - tri[1].y);
-                drawText(`${i*step}%`, x +25*scale, y -5*scale, 10*scale, color);
-            }
-            for (let i = 0; i <= 10; i++) {
-                const r = i / 10;
-                const x = tri[2].x + r*(tri[0].x - tri[2].x);
-                const y = tri[2].y + r*(tri[0].y - tri[2].y);
-                drawText(`${i*step}%`, x, y +20*scale, 10*scale, color);
-            }
-        }
-
-        // ================= 绘制菱形网格 =================
-        function drawDiamondGrid(diamond, divisions, bgColor) {
-            ctx.fillStyle = bgColor;
-            ctx.beginPath();
-            ctx.moveTo(diamond[0].x, diamond[0].y);
-            ctx.lineTo(diamond[1].x, diamond[1].y);
-            ctx.lineTo(diamond[2].x, diamond[2].y);
-            ctx.lineTo(diamond[3].x, diamond[3].y);
-            ctx.closePath();
-            ctx.fill();
+            window.pointData = [];
             
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 0.8;
-            for (let i = 1; i < divisions; i++) {
-                const r = i / divisions;
-                // 左上-右下方向网格
-                const y1 = diamond[0].y + r*(diamond[1].y - diamond[0].y);
-                const x1 = diamond[0].x + r*(diamond[1].x - diamond[0].x);
-                const y2 = diamond[3].y + r*(diamond[2].y - diamond[3].y);
-                const x2 = diamond[3].x + r*(diamond[2].x - diamond[3].x);
-                drawLine({x:x1,y:y1}, {x:x2,y:y2});
+            dataPoints.forEach(p=>{
+                if(!p) return;
+                const catX = (p.caP * layout.catTri[0].x + p.mgP * layout.catTri[1].x + p.nkP * layout.catTri[2].x) / 100;
+                const catY = (p.caP * layout.catTri[0].y + p.mgP * layout.catTri[1].y + p.nkP * layout.catTri[2].y) / 100;
+                const catPoint = {x: catX, y: catY};
+                drawPoint(catPoint.x, catPoint.y, ColorConfig.cationTri, 'triangle', p.idx, p);
+
+                const aniX = (p.clP * layout.aniTri[0].x + p.sP * layout.aniTri[1].x + p.hcP * layout.aniTri[2].x) / 100;
+                const aniY = (p.clP * layout.aniTri[0].y + p.sP * layout.aniTri[1].y + p.hcP * layout.aniTri[2].y) / 100;
+                const aniPoint = {x: aniX, y: aniY};
+                drawPoint(aniPoint.x, aniPoint.y, ColorConfig.anionTri, 'triangle', p.idx, p);
+
+                const cationRay = getCationProjectionRay(catPoint, layout);
+                const anionRay = getAnionProjectionRay(aniPoint, layout);
+                if (!cationRay || !anionRay) {
+                    console.warn(`点位${p.idx}投影射线计算失败，跳过`);
+                    return;
+                }
+                let diamondPoint = lineIntersection(cationRay, anionRay);
                 
-                // 右上-左下方向网格
-                const y3 = diamond[1].y + r*(diamond[2].y - diamond[1].y);
-                const x3 = diamond[1].x + r*(diamond[2].x - diamond[1].x);
-                const y4 = diamond[0].y + r*(diamond[3].y - diamond[0].y);
-                const x4 = diamond[0].x + r*(diamond[3].x - diamond[0].x);
-                drawLine({x:x3,y:y3}, {x:x4,y:y4});
-            }
-        }
+                if (!diamondPoint) {
+                    console.warn(`点位${p.idx}射线无交点，使用默认位置`);
+                    diamondPoint = {x: layout.diamond[0].x, y: layout.diamond[0].y};
+                }
+                
+                const correctedP = pushPointOutOfDiamond(diamondPoint.x, diamondPoint.y, layout.diamond);
+                diamondPoint = correctedP;
+                
+                const zone69 = getDiamond69Zone(diamondPoint.x, diamondPoint.y);
+                const zone4 = getDiamond4Zone(diamondPoint.x, diamondPoint.y); // 使用修正后的4区判定
+                const chemType = getChemicalType(diamondPoint.x, diamondPoint.y);
+                
+                const resultItem = resultList.find(item => item.idx === p.idx);
+                if (resultItem) {
+                    resultItem.zone69 = zone69;
+                    resultItem.zone4 = zone4; 
+                    resultItem.chemType = chemType.type;
+                    resultItem.chemTypeDesc = chemType.desc;
+                    resultItem.diamondX = diamondPoint.x;
+                    resultItem.diamondY = diamondPoint.y;
+                }
 
-        // ================= 绘制菱形刻度 =================
-        function drawDiamondScale(diamond, color) {
-            const step = 10;
-            // 左上边：SO4+Cl% 0→100%
-            for (let i = 0; i <= 10; i++) {
-                const r = i / 10;
-                const x = diamond[0].x + r * (diamond[1].x - diamond[0].x);
-                const y = diamond[0].y + r * (diamond[1].y - diamond[0].y);
-                drawText(`${i * step}%`, x - 22 * scale, y - 8 * scale, 10 * scale, color);
-            }
-            // 右上边：Ca+Mg% 0→100%
-            for (let i = 0; i <= 10; i++) {
-                const r = i / 10;
-                const x = diamond[1].x + r * (diamond[2].x - diamond[1].x);
-                const y = diamond[1].y + r * (diamond[2].y - diamond[1].y);
-                drawText(`${i * step}%`, x + 22 * scale, y - 8 * scale, 10 * scale, color);
-            }
-            // 右下边：CO3+HCO3% 0→100%
-            for (let i = 0; i <= 10; i++) {
-                const r = i / 10;
-                const x = diamond[2].x + r * (diamond[3].x - diamond[2].x);
-                const y = diamond[2].y + r * (diamond[3].y - diamond[2].y);
-                drawText(`${i * step}%`, x + 22 * scale, y + 8 * scale, 10 * scale, color);
-            }
-            // 左下边：Na+K% 0→100%
-            for (let i = 0; i <= 10; i++) {
-                const r = i / 10;
-                const x = diamond[3].x + r * (diamond[0].x - diamond[3].x);
-                const y = diamond[3].y + r * (diamond[0].y - diamond[3].y);
-                drawText(`${i * step}%`, x - 22 * scale, y + 8 * scale, 10 * scale, color);
-            }
-        }
-
-        // ================= 绘制数据点 =================
-        function drawDataPoints() {
-            if (!dataPoints.length) return;
-            const { catTri, aniTri, diamond } = window.piperLayout;
-
-            dataPoints.forEach(p => {
-                // 阳离子三角形数据点
-                const catX = (p.caP * catTri[0].x + p.mgP * catTri[1].x + p.nkP * catTri[2].x) / 100;
-                const catY = (p.caP * catTri[0].y + p.mgP * catTri[1].y + p.nkP * catTri[2].y) / 100;
-                drawPoint(catX, catY, '#0066CC', 'triangle', p.idx);
-
-                // 阴离子三角形数据点
-                const aniX = (p.clP * aniTri[0].x + p.sP * aniTri[1].x + p.hcP * aniTri[2].x) / 100;
-                const aniY = (p.clP * aniTri[0].y + p.sP * aniTri[1].y + p.hcP * aniTri[2].y) / 100;
-                drawPoint(aniX, aniY, '#cc3333', 'triangle', p.idx);
-
-                // 菱形数据点
-                const nkRatio = p.nkTotalP / 100;
-                const so4ClRatio = p.so4ClTotalP / 100;
-                const caMgRatio = p.caMgTotalP / 100;
-                const hcRatio = p.hcTotalP / 100;
-
-                const dx = diamond[0].x * nkRatio + diamond[1].x * so4ClRatio + diamond[2].x * caMgRatio + diamond[3].x * hcRatio;
-                const dy = diamond[0].y * nkRatio + diamond[1].y * so4ClRatio + diamond[2].y * caMgRatio + diamond[3].y * hcRatio;
-
-                drawPoint(dx, dy, '#f39c12', 'circle', p.idx);
+                drawPoint(diamondPoint.x, diamondPoint.y, chemType.color, 'circle', p.idx, p);
+                
+                ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([3,3]);
+                drawLine(catPoint, diamondPoint);
+                drawLine(aniPoint, diamondPoint);
+                ctx.setLineDash([]);
             });
+            
+            updateResultDisplay();
+            
+            if (showChemType) {
+                drawChemTypeLabels();
+            }
         }
 
-        // ================= 工具函数：绘制点 =================
-        function drawPoint(x, y, color, type, label) {
-            ctx.fillStyle = color;
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 1.2;
-            const size = 8 * scale;
+        function drawPoint(x,y,color,type,label,data) {
+            if(!ctx || isNaN(x) || isNaN(y) || !color || !type) return;
             
-            if (type === 'triangle') {
-                ctx.beginPath();
-                ctx.moveTo(x, y - size/2);
-                ctx.lineTo(x - size/2, y + size/2);
-                ctx.lineTo(x + size/2, y + size/2);
-                ctx.closePath();
-                ctx.fill();
+            ctx.fillStyle=color; ctx.strokeStyle="#000"; ctx.lineWidth=1.2;
+            const size=8*scale;
+            
+            if (!window.pointData) window.pointData = [];
+            window.pointData.push({
+                x, y, size, type, label, data,
+                hitBox: {
+                    x1: x - size,
+                    y1: y - size,
+                    x2: x + size,
+                    y2: y + size
+                }
+            });
+            
+            if(type==='triangle'){
+                ctx.beginPath(); 
+                ctx.moveTo(x,y-size/2); 
+                ctx.lineTo(x-size/2,y+size/2); 
+                ctx.lineTo(x+size/2,y+size/2); 
+                ctx.closePath(); 
+                ctx.fill(); 
                 ctx.stroke();
+            }else{
+                ctx.beginPath(); 
+                ctx.arc(x,y,size/2,0,Math.PI*2); 
+                ctx.fill(); 
+                ctx.stroke();
+            }
+            
+            const lx=x+size+3*scale; 
+            const ly=y-size/2;
+            if(lx<canvasWidth-30*scale && ly>30*scale && label) {
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                ctx.fillRect(lx - 5*scale, ly - 8*scale, label.toString().length * 8*scale + 10*scale, 16*scale);
+                drawText(label.toString(),lx,ly,10*scale,'#000');
+            }
+        }
+
+        function handleMouseMove(e) {
+            if (!window.pointData || window.pointData.length === 0) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width) / window.devicePixelRatio;
+            const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height) / window.devicePixelRatio;
+            
+            const hovered = window.pointData.find(p => 
+                mouseX >= p.hitBox.x1 && mouseX <= p.hitBox.x2 &&
+                mouseY >= p.hitBox.y1 && mouseY <= p.hitBox.y2
+            );
+            
+            if (hovered) {
+                hoveredPoint = hovered;
+                const data = hovered.data;
+                const result = resultList.find(r => r.idx === data.idx);
+                let tooltipText = `
+【点位 ${data.idx}】
+阳离子：Ca%=${data.caP} | Mg%=${data.mgP} | Na+K%=${data.nkP}
+阴离子：Cl%=${data.clP} | SO4%=${data.sP} | HCO3+CO3%=${data.hcP}
+矿化度：${result?.mineral || 0}g/L (${result?.level || '-'})
+苏林分类：${result?.sulinType || '未分类'}
+水化学大类：${result?.chemType || '未知'}
+${result?.chemTypeDesc || ''}
+菱形分区：6/9区=${result?.zone69 || '-'} | 4区=${result?.zone4 || '-'}
+                `;
+                tooltip.style.display = 'block';
+                tooltip.style.left = `${e.clientX + 10}px`;
+                tooltip.style.top = `${e.clientY + 10}px`;
+                tooltip.textContent = tooltipText.trim();
             } else {
-                ctx.beginPath();
-                ctx.arc(x, y, size/2, 0, Math.PI*2);
-                ctx.fill();
-                ctx.stroke();
-            }
-            
-            const lx = x + size + 3*scale;
-            const ly = y - size/2;
-            if (lx < canvasWidth -30*scale && ly >30*scale) {
-                drawText(label.toString(), lx, ly, 10*scale, '#000');
+                hoveredPoint = null;
+                tooltip.style.display = 'none';
             }
         }
 
-        // ================= 工具函数：绘制多边形 =================
-        function drawPolygon(points, color, width) {
-            ctx.strokeStyle = color;
-            ctx.lineWidth = width;
-            ctx.beginPath();
-            ctx.moveTo(points[0].x, points[0].y);
-            for (let i=1; i<points.length; i++) ctx.lineTo(points[i].x, points[i].y);
-            ctx.closePath();
-            ctx.stroke();
-        }
-
-        // ================= 工具函数：绘制线段 =================
-        function drawLine(p1, p2) {
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.stroke();
-        }
-
-        // ================= 工具函数：绘制文字 =================
-        function drawText(text, x, y, fontSize, color='#000') {
-            ctx.fillStyle = color;
-            ctx.font = `${fontSize}px Microsoft YaHei`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(text, x, y);
-        }
-
-        // ================= 处理文件上传 =================
-        function handleFileUpload(e) {
-            const file = e.target.files[0];
-            if (!file) return;
+        function drawPolygon(points,color,width){
+            if(!points || points.length < 3 || !color || isNaN(width)) return;
             
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                try {
-                    dataPoints = [];
-                    resultList = [];
-                    let rows = file.name.endsWith('.csv') ? parseCSV(event.target.result) : parseExcelMock(event.target.result);
-                    processDataRows(rows);
-                    drawPiperBase();
-                    drawDataPoints();
+            ctx.strokeStyle=color; ctx.lineWidth=width; ctx.beginPath();
+            ctx.moveTo(points[0].x,points[0].y);
+            for(let i=1;i<points.length;i++) {
+                if(!points[i]) continue;
+                ctx.lineTo(points[i].x, points[i].y);
+            }
+            ctx.closePath(); ctx.stroke();
+        }
+
+        function drawLine(p1,p2){
+            if(!p1 || !p2 || isNaN(p1.x) || isNaN(p1.y) || isNaN(p2.x) || isNaN(p2.y)) return;
+            
+            ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+        }
+
+        function drawText(text,x,y,size,color='#000'){
+            if(!text || isNaN(x) || isNaN(y) || isNaN(size) || !color) return;
+            
+            ctx.fillStyle=color; ctx.font=`${size}px Microsoft YaHei`;
+            ctx.textAlign='center'; ctx.textBaseline='middle'; 
+            const lines = text.split('\n');
+            lines.forEach((line, index) => {
+                ctx.fillText(line, x, y + (index * size * 1.2));
+            });
+        }
+
+        function handleFileUpload(e){
+            if(!e || !e.target || !e.target.files || e.target.files.length === 0) {
+                alert("请选择有效的文件！");
+                return;
+            }
+            
+            const file=e.target.files[0]; 
+            if(!file) {
+                alert("文件选择失败，请重新选择！");
+                return;
+            }
+
+            const reader=new FileReader();
+            reader.onload=function(e){
+                try{
+                    loading.style.display = 'block';
+                    dataPoints=[]; 
+                    resultList=[];
+                    chemTypeLabels = [];
+                    clearChemTypeLabels();
+                    window.pointData = [];
+                    let rows = [];
+
+                    if(!e || !e.target || !e.target.result) {
+                        alert("文件读取失败，内容为空！");
+                        loading.style.display = 'none';
+                        return;
+                    }
+
+                    if (file.name.endsWith('.csv')) {
+                        rows = parseCSV(e.target.result) || [];
+                    } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                        rows = parseExcel(e.target.result) || [];
+                    } else {
+                        alert("不支持的文件格式！仅支持 .xlsx/.xls/.csv");
+                        loading.style.display = 'none';
+                        return;
+                    }
+
+                    if(!rows || rows.length === 0) {
+                        alert("文件解析后无有效数据，请检查文件内容！");
+                        loading.style.display = 'none';
+                        return;
+                    }
+
+                    const processResult = processDataRows(rows);
+                    drawPiperBase(); 
+                    drawDataPoints(); 
                     updateResultDisplay();
-                    alert(`导入成功！共处理 ${resultList.length} 条数据`);
-                } catch (err) {
-                    alert(`导入失败：${err.message}`);
-                    console.error(err);
+                    
+                    loading.style.display = 'none';
+                    alert(`导入完成！共处理 ${rows.length-1} 行数据，有效数据 ${processResult.validCount} 条，错误 ${processResult.errorCount} 条`);
+                }catch(err){ 
+                    loading.style.display = 'none';
+                    alert('导入失败：'+err.message); 
+                    console.error('导入错误详情：', err); 
                 }
             };
-            file.name.endsWith('.csv') ? reader.readAsText(file) : reader.readAsArrayBuffer(file);
-        }
 
-        // ================= 解析CSV =================
-        function parseCSV(text) {
-            return text.split('\n').filter(l=>l.trim()).map(l=>l.split(',').map(c=>c.trim().replace(/^"|"$/g,'')));
-        }
+            reader.onerror = function() {
+                loading.style.display = 'none';
+                alert("文件读取失败，请检查文件是否损坏或权限不足！");
+            };
 
-        // ================= 模拟Excel数据 =================
-        function parseExcelMock(data) {
-            return [
-                ['序号','Ca','Mg','K','Na','HCO3','CO3','SO4','Cl'],
-                ['1','60','20','5','15','40','5','30','25'],['2','70','10','5','15','45','5','25','25'],
-                ['3','80','5','5','10','50','5','20','25'],['4','50','25','5','20','35','5','35','25'],
-                ['5','85','5','5','5','55','5','15','25'],['6','40','30','5','25','30','5','40','25'],
-                ['7','35','30','5','30','25','5','40','30'],['8','30','30','5','35','20','5','40','35'],
-                ['9','25','30','5','40','15','5','40','40'],['10','20','30','5','45','10','5','40','45']
-            ];
-        }
-
-        // ================= 处理数据行 =================
-        function processDataRows(rows) {
-            for (let i = 1; i < rows.length; i++) {
-                const row = rows[i];
-                if (row.length < 9) continue;
-
-                const idx = parseInt(row[0]) || i;
-                const ca = parseFloat(row[1]) || 0, mg = parseFloat(row[2]) || 0, k = parseFloat(row[3]) || 0, na = parseFloat(row[4]) || 0;
-                const hco3 = parseFloat(row[5]) || 0, co3 = parseFloat(row[6]) || 0, so4 = parseFloat(row[7]) || 0, cl = parseFloat(row[8]) || 0;
-
-                // 计算当量浓度
-                const caEq = ca / (MOLAR_MASSES.Ca / 2), mgEq = mg / (MOLAR_MASSES.Mg / 2);
-                const kEq = k / MOLAR_MASSES.K, naEq = na / MOLAR_MASSES.Na;
-                const hcEq = hco3 / MOLAR_MASSES.HCO3, cEq = co3 / (MOLAR_MASSES.CO3 / 2);
-                const sEq = so4 / (MOLAR_MASSES.SO4 / 2), clEq = cl / MOLAR_MASSES.Cl;
-
-                // 计算总当量
-                const catTotal = caEq + mgEq + kEq + naEq;
-                const anTotal = hcEq + cEq + sEq + clEq;
-                const totalAll = catTotal + anTotal;
-                if (!totalAll) continue;
-
-                // 阳离子百分比（归一化到100%）
-                let caP = (caEq / catTotal) * 100, mgP = (mgEq / catTotal) * 100, nkP = ((kEq + naEq) / catTotal) * 100;
-                // 阴离子百分比（归一化到100%）
-                let hcP = ((hcEq + cEq) / anTotal) * 100, sP = (sEq / anTotal) * 100, clP = (clEq / anTotal) * 100;
-
-                // 强制归一化
-                const catSum = caP + mgP + nkP, anSum = hcP + sP + clP;
-                caP = (caP / catSum) * 100; mgP = (mgP / catSum) * 100; nkP = (nkP / catSum) * 100;
-                hcP = (hcP / anSum) * 100; sP = (sP / anSum) * 100; clP = (clP / anSum) * 100;
-
-                // 总离子四项（严格归一化到100%）
-                let caMgTotalP = ((caEq + mgEq) / totalAll) * 100;
-                let nkTotalP = ((kEq + naEq) / totalAll) * 100;
-                let so4ClTotalP = ((sEq + clEq) / totalAll) * 100;
-                let hcTotalP = ((hcEq + cEq) / totalAll) * 100;
-
-                // 强制归一化到100%
-                const sum = caMgTotalP + nkTotalP + so4ClTotalP + hcTotalP;
-                caMgTotalP = Number(((caMgTotalP / sum) * 100).toFixed(2));
-                nkTotalP = Number(((nkTotalP / sum) * 100).toFixed(2));
-                so4ClTotalP = Number(((so4ClTotalP / sum) * 100).toFixed(2));
-                hcTotalP = Number(((hcTotalP / sum) * 100).toFixed(2));
-
-                // 判定区域和类型
-                const zone = getDiamondZone(caMgTotalP, nkTotalP, so4ClTotalP, hcTotalP);
-                const type = getWaterType(nkP, hcP);
-
-                dataPoints.push({ idx, caP, mgP, nkP, hcP, sP, clP, caMgTotalP, nkTotalP, so4ClTotalP, hcTotalP });
-                resultList.push({
-                    idx, ca: caP.toFixed(1), mg: mgP.toFixed(1), nk: nkP.toFixed(1),
-                    hc: hcP.toFixed(1), s: sP.toFixed(1), cl: clP.toFixed(1),
-                    caMgTotal: caMgTotalP.toFixed(1), nkTotal: nkTotalP.toFixed(1),
-                    so4ClTotal: so4ClTotalP.toFixed(1), hcTotal: hcTotalP.toFixed(1),
-                    zone, type
-                });
+            if (file.name.endsWith('.csv')) {
+                reader.readAsText(file);
+            } else {
+                reader.readAsArrayBuffer(file);
             }
         }
 
-        // ================= 判定菱形6大区域 =================
-        function getDiamondZone(caMgP, nkP, so4ClP, hcP) {
-            if (caMgP > 50 && so4ClP > 50) return '6区';
-            if (nkP > 50 && so4ClP > 50) return '7区';
-            if (nkP > 50 && hcP > 50) return '8区';
-            if (caMgP > 50 && hcP > 50) return '5区';
-            return so4ClP > hcP ? '9区' : '4区';
-        }
-
-        // ================= 判定水化学类型 =================
-        function getWaterType(nkP, hcP) {
-            if (nkP < 50 && hcP > 50) return '碳酸盐型水';
-            if (nkP > 50 && hcP < 50) return '钠-氯化物型水';
-            if (nkP < 50 && hcP < 50) return '钙镁型水';
-            return '硫酸盐-氯化物型水';
-        }
-
-        // ================= 更新结果显示 =================
-        function updateResultDisplay() {
-            const resultBox = document.getElementById('resultBox');
-            const dataTable = document.getElementById('dataTable');
+        function parseCSV(text){
+            if(!text || typeof text !== 'string') return [];
             
-            let txt = '';
-            resultList.forEach(item => {
-                txt += `[点${item.idx}]\n阳离子：Ca=${item.ca}% Mg=${item.mg}% Na+K=${item.nk}%\n阴离子：HCO3+CO3=${item.hc}% SO4=${item.s}% Cl=${item.cl}%\n总离子比例：Ca+Mg=${item.caMgTotal}% Na+K=${item.nkTotal}% SO4+Cl=${item.so4ClTotal}% CO3+HCO3=${item.hcTotal}%\n→ 类型：${item.type} | 区域：${item.zone}\n------------------------------------------------\n`;
-            });
-            resultBox.textContent = txt;
+            return text.split('\n')
+                       .filter(l=>l && l.trim())
+                       .map(l=>{
+                           if(!l) return [];
+                           return l.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(c=>{
+                               if(c === null || c === undefined) return '';
+                               return c.trim().replace(/^"|"$/g,'');
+                           });
+                       })
+                       .filter(row=>row && row.length > 0);
+        }
+
+        function parseExcel(arrayBuffer){
+            try{
+                if(!arrayBuffer) return [];
+                
+                const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                if(!workbook || !workbook.SheetNames || workbook.SheetNames.length === 0) {
+                    alert("Excel文件中无有效工作表！");
+                    return [];
+                }
+                
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                if(!worksheet) {
+                    alert("工作表读取失败！");
+                    return [];
+                }
+                
+                const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                return rows.filter(row => row && row.some(cell => {
+                    return cell !== null && cell !== undefined && cell.toString().trim() !== '';
+                }));
+            } catch (err) {
+                console.error('Excel解析错误：', err);
+                alert("Excel文件解析失败，请检查文件是否损坏或格式异常！");
+                return [];
+            }
+        }
+
+        function loadSampleData() {
+            const sampleData = [
+                ['序号','Ca2+','Mg2+','K+','Na+','HCO3-','CO32-','SO42-','Cl-','矿化度'],
+                ['1','10.28','60.65','4.18','0.4','7.81','0','34.6','21.4','0.5'],
+                ['2','273.96','33.41','80.3','122.44','172.98','0','717.95','458.58','2.8'],
+                ['3','83.86','6.66','1.31','4.55','166.11','0','944.73','51.6','5.2'],
+                ['4','199.48','13.92','56.86','145.11','243.55','0','631.56','32.96','8.5'],
+                ['5','157.55','24.33','1.75','4.48','316.61','0','232.57','65.7','12.3']
+            ];
             
-            dataTable.innerHTML = '';
-            resultList.forEach(item => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${item.idx}</td><td>${item.ca}</td><td>${item.mg}</td><td>${item.nk}</td><td>${item.hc}</td><td>${item.s}</td><td>${item.cl}</td><td>${item.caMgTotal}</td><td>${item.nkTotal}</td><td>${item.so4ClTotal}</td><td>${item.hcTotal}</td><td>${item.zone}</td><td>${item.type}</td>`;
-                dataTable.appendChild(tr);
+            if(!sampleData || sampleData.length === 0) {
+                console.warn("示例数据为空！");
+                return;
+            }
+            
+            dataPoints = [];
+            resultList = [];
+            chemTypeLabels = [];
+            clearChemTypeLabels();
+            window.pointData = [];
+            processDataRows(sampleData);
+            drawPiperBase();
+            drawDataPoints();
+            updateResultDisplay();
+        }
+
+        function processDataRows(rows) {
+            let validCount = 0;
+            let errorCount = 0;
+            const errorRows = [];
+
+            if(!rows || !Array.isArray(rows) || rows.length <= 1) {
+                alert("数据格式错误！");
+                return { validCount: 0, errorCount: 0 };
+            }
+
+            const header = rows[0].map(cell => (cell || '').toString().trim().toLowerCase());
+            const requiredFields = ['序号','ca2+','mg2+','k+','na+','hco3-','co32-','so42-','cl-','矿化度'];
+            const missingFields = requiredFields.filter(field => !header.some(h => h.includes(field.toLowerCase())));
+            if (missingFields.length > 0) {
+                alert(`表头缺失必要字段：${missingFields.join(', ')}`);
+                return { validCount: 0, errorCount: rows.length-1 };
+            }
+
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                if(!row || row.length < 9) {
+                    errorCount++;
+                    errorRows.push(i);
+                    continue;
+                }
+
+                const idx = parseInt(row[0]) || i;
+                const ca = Math.max(0, parseFloat(row[1]) || 0);
+                const mg = Math.max(0, parseFloat(row[2]) || 0);
+                const k = Math.max(0, parseFloat(row[3]) || 0);
+                const na = Math.max(0, parseFloat(row[4]) || 0);
+                const hco3 = Math.max(0, parseFloat(row[5]) || 0);
+                const co3 = Math.max(0, parseFloat(row[6]) || 0);
+                const so4 = Math.max(0, parseFloat(row[7]) || 0);
+                const cl = Math.max(0, parseFloat(row[8]) || 0);
+                const mineral = Math.max(0, parseFloat(row[9]) || 0);
+
+                const eqData = {
+                    CaEq: ca / EqMass.Ca,
+                    MgEq: mg / EqMass.Mg,
+                    KEq: k / EqMass.K,
+                    NaEq: na / EqMass.Na,
+                    HCO3Eq: hco3 / EqMass.HCO3,
+                    CO3Eq: co3 / EqMass.CO3,
+                    SO4Eq: so4 / EqMass.SO4,
+                    ClEq: cl / EqMass.Cl
+                };
+
+                const naTotal = eqData.NaEq + eqData.KEq;
+                const hco3Total = eqData.HCO3Eq + eqData.CO3Eq;
+
+                const cationTotal = eqData.CaEq + eqData.MgEq + naTotal;
+                const anionTotal = hco3Total + eqData.SO4Eq + eqData.ClEq;
+
+                if(cationTotal <= 1e-6 || anionTotal <= 1e-6) {
+                    errorCount++;
+                    errorRows.push(i);
+                    resultList.push({
+                        idx, 
+                        error: '离子总量为0',
+                        isError: true,
+                        rowNum: i+1,
+                        chemType: '未知',
+                        zone4: '菱形外' 
+                    });
+                    continue;
+                }
+
+                validCount++;
+
+                const caP = ((eqData.CaEq/cationTotal)*100).toFixed(2);
+                const mgP = ((eqData.MgEq/cationTotal)*100).toFixed(2);
+                const nkP = ((naTotal/cationTotal)*100).toFixed(2);
+                const hcP = ((hco3Total/anionTotal)*100).toFixed(2);
+                const sP = ((eqData.SO4Eq/anionTotal)*100).toFixed(2);
+                const clP = ((eqData.ClEq/anionTotal)*100).toFixed(2);
+
+                const caMgP = ((eqData.CaEq + eqData.MgEq) / cationTotal * 100).toFixed(2);
+                const so4ClP = ((eqData.SO4Eq + eqData.ClEq) / anionTotal * 100).toFixed(2);
+
+                const error = Math.abs(cationTotal - anionTotal) / ((cationTotal + anionTotal)/2) *100;
+
+                const anions = [];
+                if(parseFloat(hcP) >25) anions.push("HCO3-");
+                if(parseFloat(sP) >25) anions.push("SO42-");
+                if(parseFloat(clP) >25) anions.push("Cl-");
+
+                const cations = [];
+                if(parseFloat(nkP) >25) cations.push("Na+");
+                if(parseFloat(caP) >25) cations.push("Ca2+");
+                if(parseFloat(mgP) >25) cations.push("Mg2+");
+
+                const anionStr = anions.join('+') || '无';
+                const cationStr = cations.join('+') || '无';
+
+                let level = 'A';
+                if(mineral >=1 && mineral <3) level='B';
+                else if(mineral >=3 && mineral <10) level='C';
+                else if(mineral >=10) level='D';
+
+                const typeName = `${anionStr}～${cationStr}～${level}`;
+                const sulinType = calculateSulinType(eqData);
+
+                dataPoints.push({ 
+                    idx, 
+                    caP:parseFloat(caP), 
+                    mgP:parseFloat(mgP), 
+                    nkP:parseFloat(nkP),
+                    hcP:parseFloat(hcP), 
+                    sP:parseFloat(sP), 
+                    clP:parseFloat(clP),
+                    caMgP: parseFloat(caMgP),
+                    so4ClP: parseFloat(so4ClP),
+                    caMgTotalP:parseFloat(caP)+parseFloat(mgP),
+                    nkTotalP:parseFloat(nkP),
+                    so4ClTotalP:parseFloat(sP)+parseFloat(clP),
+                    hcTotalP:parseFloat(hcP)
+                });
+
+                resultList.push({
+                    idx, 
+                    caP, mgP, nkP, caMgP, 
+                    clP, sP, hcP, so4ClP,      
+                    cationTotal: cationTotal.toFixed(3),
+                    anionTotal: anionTotal.toFixed(3),
+                    error: error.toFixed(2),
+                    mineral: mineral.toFixed(2),
+                    level, 
+                    anionStr, 
+                    cationStr, 
+                    typeName,
+                    sulinType,
+                    chemType: "待计算",
+                    chemTypeDesc: "",
+                    zone69: "待计算", 
+                    zone4: "待计算", 
+                    diamondX: 0,
+                    diamondY: 0,
+                    isError: false
+                });
+            }
+
+            if (errorCount > 0) {
+                console.warn(`数据处理错误行：${errorRows.join(', ')}`);
+            }
+
+            return { validCount, errorCount };
+        }
+
+        function CalculateMidPoint(p1,p2){ 
+            if(!p1 || !p2) return {x:0,y:0};
+            return {x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2}; 
+        }
+        
+        function CalculateIntersection(p1,p2,p3,p4){
+            if(!p1 || !p2 || !p3 || !p4) return {x:0,y:0};
+            const a1=p2.y-p1.y,b1=p1.x-p2.x,c1=a1*p1.x+b1*p1.y;
+            const a2=p4.y-p3.y,b2=p3.x-p4.x,c2=a2*p3.x+b2*p3.y;
+            const det=a1*b2-a2*b1;
+            return det===0?{x:0,y:0}:{x:(b2*c1-b1*c2)/det,y:(a1*c2-a2*c1)/det};
+        }
+
+        function updateResultDisplay(){
+            const box=document.getElementById('resultBox');
+            const table=document.getElementById('dataTable');
+            if(!box || !table) return;
+            
+            let txt='';
+            if(resultList.length>0){
+                resultList.forEach(item=>{
+                    if (item.isError) {
+                        txt+=`【错误行${item.rowNum}】${item.error}\n`;
+                        return;
+                    }
+                    txt+=`【点${item.idx}】${item.typeName}\n`+
+                        `阴离子：${item.anionStr}  阳离子：${item.cationStr}\n`+
+                        `Ca+Mg%：${item.caMgP}  Na+K%：${item.nkP}\n`+
+                        `HCO3+CO3%：${item.hcP}  SO4+Cl%：${item.so4ClP}\n`+
+                        `矿化度：${item.mineral}g/L (${item.level})  误差：${item.error}%\n`+
+                        `苏林分类：${item.sulinType}\n`+
+                        `水化学大类：${item.chemType}\n`+
+                        `${item.chemTypeDesc}\n`+
+                        `菱形6/9分区：${item.zone69}  菱形4分区：${item.zone4}\n`+ 
+                        `------------------------------------------------\n`;
+                });
+            }else{
+                txt="暂无数据";
+            }
+            box.textContent=txt;
+            table.innerHTML='';
+
+            resultList.forEach(item=>{
+                const tr=document.createElement('tr');
+                if (item.isError) {
+                    tr.className = 'error-row';
+                    tr.innerHTML=`
+                        <td>${item.idx}</td>
+                        <td colspan="20">第${item.rowNum}行数据错误：${item.error}</td>
+                    `;
+                } else {
+                    tr.innerHTML=`
+                        <td>${item.idx}</td>
+                        <td>${item.caP}</td>
+                        <td>${item.mgP}</td>
+                        <td>${item.nkP}</td>
+                        <td>${item.caMgP}</td>
+                        <td>${item.clP}</td>
+                        <td>${item.sP}</td>
+                        <td>${item.hcP}</td>
+                        <td>${item.so4ClP}</td>
+                        <td>${item.cationTotal}</td>
+                        <td>${item.anionTotal}</td>
+                        <td>${item.error}%</td>
+                        <td>${item.mineral}</td>
+                        <td>${item.level}</td>
+                        <td>${item.anionStr}</td>
+                        <td>${item.cationStr}</td>
+                        <td>${item.typeName}</td>
+                        <td>${item.sulinType}</td>
+                        <td>${item.zone69}</td>
+                        <td>${item.zone4}</td> 
+                        <td>${item.chemType}</td>`;
+                }
+                table.appendChild(tr);
             });
         }
 
-        // ================= 导出Excel =================
-        function exportToExcel() {
-            let csv = '\uFEFF序号,Ca%(阳离子),Mg%(阳离子),Na+K%(阳离子),HCO3+CO3%(阴离子),SO4%(阴离子),Cl%(阴离子),Ca+Mg%(总离子),Na+K%(总离子),SO4+Cl%(总离子),CO3+HCO3%(总离子),菱形区域,水化学类型\n';
-            resultList.forEach(item => {
-                csv += `${item.idx},${item.ca},${item.mg},${item.nk},${item.hc},${item.s},${item.cl},${item.caMgTotal},${item.nkTotal},${item.so4ClTotal},${item.hcTotal},${item.zone},${item.type}\n`;
+        function exportToXLSX(){
+            if(resultList.length===0){alert("无数据");return;}
+            
+            const headers = [
+                '序号','Ca%','Mg%','Na+K%','Ca+Mg%','Cl%','SO4%','HCO3+CO3%','SO4+Cl%',
+                '阳离子总量','阴离子总量','相对误差(%)','矿化度(g/L)','矿化度等级',
+                '阴离子组合(>25%)','阳离子组合(>25%)','化学类型命名','苏林法分类',
+                '菱形分区（6/9区）','菱形分区（4区）','水化学大类'
+            ];
+            
+            const rows = [headers];
+            resultList.forEach(item=>{
+                if (item.isError) {
+                    rows.push([
+                        item.idx, '', '', '', '', '', '', '', '',
+                        '', '', '', '', '',
+                        '', '', `数据错误：${item.error}`, '',
+                        '', item.zone4 || '菱形外', '未知'
+                    ]);
+                } else {
+                    rows.push([
+                        item.idx, item.caP, item.mgP, item.nkP, item.caMgP,
+                        item.clP, item.sP, item.hcP, item.so4ClP,
+                        item.cationTotal, item.anionTotal, item.error,
+                        item.mineral, item.level,
+                        item.anionStr, item.cationStr, item.typeName,
+                        item.sulinType, item.zone69, item.zone4, 
+                        item.chemType
+                    ]);
+                }
             });
-            const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.href = url;
-            link.download = 'Piper三线图分析结果_' + new Date().getTime() + '.csv';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            alert("结果已导出为CSV文件");
+            
+            const workbook = XLSX.utils.book_new();
+            const worksheet = XLSX.utils.aoa_to_sheet(rows);
+            
+            const colWidths = headers.map(h => ({ wch: Math.max(h.length + 2, 10) }));
+            worksheet['!cols'] = colWidths;
+            
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Piper三线图结果');
+            
+            XLSX.writeFile(workbook, `地下水化学分类结果_${new Date().toLocaleString().replace(/[/: ]/g, '_')}.xlsx`);
+            alert("Excel文件导出成功！");
         }
     </script>
 </body>
