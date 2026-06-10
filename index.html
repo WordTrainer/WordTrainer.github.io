@@ -34,6 +34,7 @@
             display: flex;
             justify-content: center;
             gap: 30px;
+            flex-wrap: wrap;
         }
         .nav-link {
             color: white;
@@ -50,6 +51,13 @@
         .nav-link.active {
             background-color: #3498db;
             font-weight: bold;
+        }
+        /* 新增外链链接样式区分 */
+        .nav-link.extern {
+            background-color: #27ae60;
+        }
+        .nav-link.extern:hover {
+            background-color: #229954;
         }
 
         .container {
@@ -226,6 +234,8 @@
     <!-- ========== 顶部导航栏 ========== -->
     <div class="top-nav">
         <div class="nav-container">
+            <!-- 新增：英语口语测试 外链按钮，新标签页打开 -->
+            <a href="https://wordtrainer.github.io/EnglishOralTest.html" target="_blank" class="nav-link extern">英语口语测试</a>
             <a href="index.html" class="nav-link" id="nav-index">单词训练</a>
             <a href="TwoCode.html" class="nav-link" id="nav-two">挪车付费</a>
             <a href="Piper.html" class="nav-link" id="nav-error">地下水水化学分析</a>
