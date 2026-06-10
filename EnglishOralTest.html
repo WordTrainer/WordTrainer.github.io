@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英语口语测评系统 - 网页版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft Yahei", Consolas, sans-serif;
+        }
+        body {
+            padding: 20px;
+            background-color: #f5f7fa;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px #ccc;
+        }
+        .row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        select, button, input[type="range"] {
+            padding: 6px 10px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            cursor: pointer;
+            background: #409eff;
+            color: #fff;
+            border: none;
+        }
+        button:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+        .content-box {
+            display: flex;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .img-area {
+            width: 300px;
+            height: 220px;
+            border: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fafafa;
+        }
+        .img-area img {
+            max-width: 100%;
+            max-height: 100%;
+        }
+        .text-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        textarea {
+            width: 100%;
+            height: 120px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: none;
+            font-size: 14px;
+        }
+        .tip {
+            color: #333;
+            padding: 8px;
+            background: #f0f7ff;
+            border-radius: 4px;
+        }
+        .progress {
+            color: #666;
+        }
+        .export-group {
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>英语口语测评系统（网页版）</h2>
+
+        <!-- 顶部选择栏 -->
+        <div class="row">
+            <div>
+                <label>选择试卷：</label>
+                <select id="cboPaper">
+                    <option value="A">A卷</option>
+                    <option value="B">B卷</option>
+                    <option value="C">C卷</option>
+                </select>
+            </div>
+            <div>
+                <label>选择模块：</label>
+                <select id="cboModule">
+                    <option value="1">模块1：看图说话</option>
+                    <option value="2">模块2：一问一答</option>
+                    <option value="3">模块3：短文朗读</option>
+                </select>
+            </div>
+            <div>
+                <label>朗读语速：</label>
+                <input type="range" id="tbRate" min="-10" max="10" value="0">
+                <span id="lblRateTip">正常</span>
+            </div>
+            <div class="progress" id="lblProgress">进度：1 / 1</div>
+        </div>
+
+        <!-- 功能按钮区 -->
+        <div class="row">
+            <button id="btnPlayAudio">播放题目朗读</button>
+            <button id="btnPlayStdAns">朗读参考答案</button>
+            <button id="btnStartRec">开始录音</button>
+            <button id="btnStopRec" disabled>停止录音</button>
+            <button id="btnNextQues">下一题</button>
+            <button id="btnSaveRecord">保存作答记录</button>
+            <button id="btnSelectAudio">选择本地音频</button>
+            <button id="btnPlayAudioFile">播放本地音频</button>
+            <button id="btnStopAudioFile">停止音频</button>
+        </div>
+
+        <!-- 图片+文本区域 -->
+        <div class="content-box">
+            <div class="img-area">
+                <img id="picTest" src="" alt="题目图片">
+            </div>
+            <div class="text-area">
+                <textarea id="txtContent" readonly placeholder="题目内容+翻译"></textarea>
+                <textarea id="txtUserAnswer" placeholder="你的朗读作答内容"></textarea>
+            </div>
+        </div>
+
+        <!-- 提示信息 -->
+        <div class="tip" id="lblTip">评分结果：待录音评测</div>
+
+        <!-- 导出按钮 -->
+        <div class="row export-group">
+            <button id="btnExportA">导出A卷题库</button>
+            <button id="btnExportB">导出B卷题库</button>
+            <button id="btnExportC">导出C卷题库</button>
+        </div>
+
+        <!-- 隐藏音频播放器 -->
+        <audio id="audioPlayer">
+    </div>
+
+    <script>
+        // ===================== 全局变量 =====================
+        let currentPaper = "A";
+        let currentModule = 1;
+        let currentQuesIndex = 0;
+        let speechRate = 0;
+        let isRecording = false;
+        let isAudioPlaying = false;
+        let readBuffer = "";
+        let currentAudioPath = "";
+
+        // 语音合成 & 语音识别
+        const synth = window.speechSynthesis;
+        let recognition = null;
+
+        // 中英翻译字典
+        const transDic = new Map();
+        // 题库数据
+        const paperBank = {};
+
+        // ===================== 文本清洗（同原VB逻辑） =====================
+        function CleanText(input) {
+            if (!input) return "";
+            let lowerStr = input.toLowerCase();
+            lowerStr = lowerStr.replace(/[^a-z0-9 ]/g, "");
+            lowerStr = lowerStr.replace(/\s+/g, " ").trim();
+            return lowerStr;
+        }
+
+        // ===================== 初始化翻译库 =====================
+        function InitTranslation() {
+            transDic.clear();
+            // A卷 Pic1
+            transDic.set("I'm Yangyang. This is my little brother Chenchen.", "我是洋洋，这是我的弟弟晨晨。");
+            transDic.set("I was four and Chenchen was ten months old. He cried a lot and I was not happy. But I still loved him.", "那时我四岁，晨晨才十个月大。他总爱哭，我很不开心，但我依然爱着他。");
+            transDic.set("I was six and Chenchen was three. He didn't listen to me and I was angry. But I still loved him.", "那时我六岁，晨晨三岁。他不听我的话，我很生气，但我依然爱着他。");
+            transDic.set("I was eight and Chenchen was five. We could play football together. He was not a good player, but we were happy.", "那时我八岁，晨晨五岁。我们一起踢足球，他踢得不算好，但我们玩得很开心。");
+            transDic.set("I'm ten now and Chenchen is seven. We go to the same school and we help each other.", "现在我十岁，晨晨七岁。我们在同一所学校上学，互相帮助。");
+            transDic.set("It's great to grow up together!", "一起长大真幸福！");
+
+            // A卷 Pic2
+            transDic.set("Q1: What will you do?", "问题1：你将要做什么？");
+            transDic.set("I will pick up rubbish in the park.", "回答：我会在公园里捡垃圾。");
+            transDic.set("Q2: Where will you go?", "问题2：你要去哪里？");
+            transDic.set("I will go to the City Park.", "回答：我要去城市公园。");
+            transDic.set("Q3: Who will you go with?", "问题3：你和谁一起去？");
+            transDic.set("I will go with my classmates.", "回答：我和同学们一起去。");
+            transDic.set("Q4: When will the activity take place?", "问题4：活动在什么时候开展？");
+            transDic.set("It will be this Saturday morning.", "回答：在本周六上午。");
+            transDic.set("Q5: Say all together", "问题5：连成一段话");
+            transDic.set("This Saturday morning, I will go to the City Park with my classmates. We will pick up rubbish and clean the park.", "回答：本周六上午，我将和同学们一起去城市公园，捡拾垃圾、打扫公园。");
+
+            // A卷 Pic3
+            transDic.set("I went to the National Museum of China yesterday. I saw an ancient dumpling from Xinjiang! It looks just like dumplings today. What did ancient people put in it? No one knows for sure.", "昨天我参观了中国国家博物馆，看到了一枚来自新疆的古代饺子！它和现在的饺子外形几乎一样。古人会往里面包什么食材呢？没人能确切知晓。");
+            transDic.set("The dumpling is from the Tang Dynasty. What does this mean? People ate dumplings over 1,000 years ago! But how did dumplings come to Xinjiang? At that time, Xinjiang was an important place in China. People in central China went there by the ancient Silk Road. They brought dumplings to Xinjiang.", "这枚饺子出自唐代。这说明早在一千多年前人们就开始吃饺子了！饺子又是如何传到新疆的呢？在古代，新疆是我国的重要地区，中原百姓沿着古丝绸之路前往西域，也把饺子带到了新疆。");
+            transDic.set("People ate dumplings so long ago! How interesting!", "原来很久以前人们就吃饺子了，真有意思！");
+
+            // B卷 Pic4
+            transDic.set("Wednesday, 7 February. Watches are so expensive. Most people don't have one. This morning, I bought my very first watch. From now on, I will always know the time!", "2月7日 星期三。从前手表十分昂贵，大多数人都买不起。今早我买到了人生第一块手表，从今往后我随时都能知晓时间了！");
+            transDic.set("Friday, 16 March. Yesterday, I bought a pair of glasses. I put them on, then I took a boat to work. And I could see all the ships on the River Thames! The river was busy.", "3月16日 星期五。昨天我配了一副眼镜。戴上眼镜后，我乘船上班，清晰地看到了泰晤士河上往来的船只，河面一片繁忙。");
+            transDic.set("Sunday, 2 September. A great fire started in London this morning! The fire is now growing very quickly. People are pulling down houses in front of the fire to stop it. But it's still moving very fast.", "9月2日 星期日。今晨伦敦突发大火，火势蔓延极快。人们推倒火场前方的房屋试图阻断火势，但大火依旧快速扩散。");
+
+            // B卷 Pic5 一问一答（原问题不变、简化回答）
+            transDic.set("Q1: What is the title of the book?", "问题1：这本书叫什么名字？");
+            transDic.set("Its name is Journey to the West.", "回答：它叫《西游记》。");
+            transDic.set("Q2: Who is the writer?", "问题2：作者是谁？");
+            transDic.set("It is Wu Cheng'en.", "回答：作者是吴承恩。");
+            transDic.set("Q3: What happened in the book?", "问题3：这本书讲了什么故事？");
+            transDic.set("It tells a great story about four friends.", "回答：它讲述了四位伙伴的精彩故事。");
+            transDic.set("Q4: Do you like this book? Why or why not?", "问题4：你喜欢这本书吗？为什么？");
+            transDic.set("Yes, I like it. It is fun and interesting.", "回答：我喜欢，它有趣又好看。");
+            transDic.set("Q5: What is your favourite part of the book?", "问题5：你最喜欢书中哪个部分？");
+            transDic.set("I like Sun Wukong best. He is brave.", "回答：我最喜欢孙悟空，他很勇敢。");
+
+            // B卷 Pic6
+            transDic.set("On Monday. Daming: What are you doing, Mum? Mum: I'm looking for my ring. I can't find it. Daming: Where did you put it? Mum: I put it on the desk this morning.", "周一。大明：妈妈，你在找什么？妈妈：我在找戒指，找不到了。大明：你放在哪儿了？妈妈：今早我放在桌子上了。");
+            transDic.set("On Wednesday. Daming: Are you ready to go, Dad? Dad: No, I can't find my car key. Daming: Where was it? Dad: It was on the desk.", "周三。大明，准备好出发了吗？爸爸：还没有，我找不到车钥匙了。钥匙之前放在哪里？就在桌子上。");
+            transDic.set("On Friday. Dad: Daming, are you OK? Daming: I can't find my coins. Did you see them? Dad: No, I didn't. Daming: First, Mum's ring. Then, Dad's key. Now, my coins. What's going on?", "周五。爸爸：大明，怎么了？大明：我的硬币不见了，你看到了吗？爸爸：没有。大明：先是妈妈的戒指，接着是爸爸的钥匙，现在我的硬币也丢了，这到底是怎么回事？");
+            transDic.set("Daming: I know. Come over here, everyone! Dad: What for? Daming: Look! The lost things are all there. Mum & Dad: Well done, Daming!", "大明：我知道啦，大家快过来！爸爸：怎么了？大明：你们看，丢失的东西全都在这里。爸爸妈妈：大明，你真棒！");
+
+            // C卷 Pic7
+            transDic.set("Dear Mum and Dad, It's the second day in China for Grandpa and me. I had a good time yesterday. The high-speed train was a surprise!", "亲爱的爸爸妈妈：我和爷爷来到中国已经第二天了，昨天我玩得特别开心。高铁真是让我大开眼界！");
+            transDic.set("It was around 15 hours from Beijing to Xi'an about 30 years ago. Grandpa still remembers that. He had a long journey then. But now it takes only a little over four hours.", "三十年前，从北京到西安大约需要十五个小时，爷爷对此记忆犹新，当年旅途十分漫长。而如今，全程只需要四个多小时。");
+            transDic.set("We left Beijing in the morning and got to Xi'an in time for lunch. The 'Chinese hamburger' tasted very good! Grandpa said, 'It's still the same taste!'", "我们早上从北京出发，午饭前就抵达了西安。肉夹馍味道十分美味，爷爷说还是记忆里的老味道。");
+            transDic.set("Xi'an also surprised me. It was an old city in Grandpa's photos. But now it's very different. We are going to Chengdu tomorrow, also by the high-speed train. I can't wait! With love, David", "西安这座城市也让我倍感惊喜。在爷爷的照片里它是一座古朴老城，如今早已焕然一新。明天我们还要坐高铁前往成都，我已经迫不及待了！爱你们的 大卫");
+
+            // C卷 Pic8
+            transDic.set("Q1: When did it happen?", "问题1：这件事发生在什么时候？");
+            transDic.set("Last Sunday afternoon.", "回答：上周日下午。");
+            transDic.set("Q2: Where were you?", "问题2：你当时在哪里？");
+            transDic.set("I was at the library.", "回答：我在图书馆。");
+            transDic.set("Q3: Who was there?", "问题3：当时谁和你在一起？");
+            transDic.set("My mom was there with me.", "回答：我妈妈陪着我。");
+            transDic.set("Q4: What did you do?", "问题4：你做了什么？");
+            transDic.set("I helped a little girl find her way home.", "回答：我帮助一个小女孩找到了回家的路。");
+            transDic.set("Q5: Put it together", "问题5：连成一段话");
+            transDic.set("Last Sunday afternoon, I helped a little girl find her way home with my mom.", "回答：上周日下午，我和妈妈一起帮助小女孩回了家。");
+
+            // C卷 Pic9
+            transDic.set("The four friends went to a hill. 'Let's see who gets to the top first!' said Amy. 'One, two, three. Run!' They all hurried up to the top of the hill.", "四个小伙伴来到小山脚下。埃米说：我们比比谁先冲到山顶!一、二、三， 跑！大家争先恐后地向山顶跑去。");
+            transDic.set("At first, Daming was at the front. But then he slowed down. One by one, his friends went past him.", "一开始大明跑在最前面，可后来他渐渐放慢脚步，小伙伴们一个个超过了他。");
+            transDic.set("'I win!' said Lingling. 'But where's Daming?' asked Sam. They waited and waited. At last, Daming came with a big bag.", "玲玲喊道：我赢啦！山姆问道： 大明去哪里了？大家等了许久，终于看见大明提着一个大袋子走了过来。");
+            transDic.set("'Where did you go?' asked Lingling. 'I saw some rubbish on the way. I picked it up.'", "玲玲问：你刚才去哪儿了？我在路上看到了垃圾， 就顺手捡了起来。");
+            transDic.set("'Daming, you're the real winner!' said Lingling.", "玲玲说：大明， 你才是真正的赢家！");
+        }
+
+        // ===================== 初始化题库（已绑定 Pic1~Pic9 图片） =====================
+        function InitAllPapers() {
+            paperBank.A = [];
+            paperBank.B = [];
+            paperBank.C = [];
+
+            // A卷 模块1 看图说话 → pic1.png
+            paperBank.A[0] = [
+                { qImg: "pic1.png", qText: "I'm Yangyang. This is my little brother Chenchen.", qTip: "完整朗读图片英文内容", stdAns: "", keywords: [] },
+                { qImg: "pic1.png", qText: "I was four and Chenchen was ten months old. He cried a lot and I was not happy. But I still loved him.", qTip: "完整朗读图片英文内容", stdAns: "", keywords: [] },
+                { qImg: "pic1.png", qText: "I was six and Chenchen was three. He didn't listen to me and I was angry. But I still loved him.", qTip: "完整朗读图片英文内容", stdAns: "", keywords: [] },
+                { qImg: "pic1.png", qText: "I was eight and Chenchen was five. We could play football together. He was not a good player, but we were happy.", qTip: "完整朗读图片英文内容", stdAns: "", keywords: [] },
+                { qImg: "pic1.png", qText: "I'm ten now and Chenchen is seven. We go to the same school and we help each other.", qTip: "完整朗读图片英文内容", stdAns: "", keywords: [] },
+                { qImg: "pic1.png", qText: "It's great to grow up together!", qTip: "完整朗读图片英文内容", stdAns: "", keywords: [] }
+            ];
+
+            // A卷 模块2 一问一答 → pic2.png
+            paperBank.A[1] = [
+                { qImg: "pic2.png", qText: "Q1: What will you do?", qTip: "你要做什么？", stdAns: "I will pick up rubbish in the park.", keywords: ["pick", "rubbish", "park"] },
+                { qImg: "pic2.png", qText: "Q2: Where will you go?", qTip: "你要去哪里？", stdAns: "I will go to the City Park.", keywords: ["city", "park"] },
+                { qImg: "pic2.png", qText: "Q3: Who will you go with?", qTip: "你和谁一起去？", stdAns: "I will go with my classmates.", keywords: ["classmates"] },
+                { qImg: "pic2.png", qText: "Q4: When will the activity take place?", qTip: "什么时候？", stdAns: "It will be this Saturday morning.", keywords: ["saturday", "morning"] },
+                { qImg: "pic2.png", qText: "Q5: Say all together", qTip: "连成一段话", stdAns: "This Saturday morning, I will go to the City Park with my classmates. We will pick up rubbish and clean the park.", keywords: ["saturday", "park", "rubbish", "classmates"] }
+            ];
+
+            // A卷 模块3 短文朗读 → pic3.png
+            paperBank.A[2] = [
+                { qImg: "pic3.png", qText: "I went to the National Museum of China yesterday. I saw an ancient dumpling from Xinjiang! It looks just like dumplings today. What did ancient people put in it? No one knows for sure.", qTip: "朗读完整段落", stdAns: "", keywords: [] },
+                { qImg: "pic3.png", qText: "The dumpling is from the Tang Dynasty. What does this mean? People ate dumplings over 1,000 years ago! But how did dumplings come to Xinjiang? At that time, Xinjiang was an important place in China. People in central China went there by the ancient Silk Road. They brought dumplings to Xinjiang.", qTip: "朗读完整段落", stdAns: "", keywords: [] },
+                { qImg: "pic3.png", qText: "People ate dumplings so long ago! How interesting!", qTip: "朗读完整段落", stdAns: "", keywords: [] }
+            ];
+
+            // B卷 模块1 → pic4.png
+            paperBank.B[0] = [
+                { qImg: "pic4.png", qText: "Wednesday, 7 February. Watches are so expensive. Most people don't have one. This morning, I bought my very first watch. From now on, I will always know the time!", qTip: "完整朗读图片英文内容", stdAns: "", keywords: [] },
+                { qImg: "pic4.png", qText: "Friday, 16 March. Yesterday, I bought a pair of glasses. I put them on, then I took a boat to work. And I could see all the ships on the River Thames! The river was busy.", qTip: "完整朗读图片英文内容", stdAns: "", keywords: [] },
+                { qImg: "pic4.png", qText: "Sunday, 2 September. A great fire started in London this morning! The fire is now growing very quickly. People are pulling down houses in front of the fire to stop it. But it's still moving very fast.", qTip: "完整朗读图片英文内容", stdAns: "", keywords: [] }
+            ];
+
+            // B卷 模块2 一问一答（西游记）→ pic5.png
+            paperBank.B[1] = [
+                { qImg: "pic5.png", qText: "Q1: What is the title of the book?", qTip: "朗读问题并完整作答", stdAns: "Its name is Journey to the West.", keywords: ["title", "book", "journey", "west"] },
+                { qImg: "pic5.png", qText: "Q2: Who is the writer?", qTip: "朗读问题并完整作答", stdAns: "It is Wu Cheng'en.", keywords: ["writer", "wu", "cheng'en"] },
+                { qImg: "pic5.png", qText: "Q3: What happened in the book?", qTip: "朗读问题并完整作答", stdAns: "It tells a great story about four friends.", keywords: ["story", "four", "friends"] },
+                { qImg: "pic5.png", qText: "Q4: Do you like this book? Why or why not?", qTip: "朗读问题并完整作答", stdAns: "Yes, I like it. It is fun and interesting.", keywords: ["like", "fun", "interesting", "book"] },
+                { qImg: "pic5.png", qText: "Q5: What is your favourite part of the book?", qTip: "朗读问题并完整作答", stdAns: "I like Sun Wukong best. He is brave.", keywords: ["favourite", "wukong", "brave"] }
+            ];
+
+            // B卷 模块3 → pic6.png
+            paperBank.B[2] = [
+                { qImg: "pic6.png", qText: "On Monday. Daming: What are you doing, Mum? Mum: I'm looking for my ring. I can't find it. Daming: Where did you put it? Mum: I put it on the desk this morning.", qTip: "朗读完整段落", stdAns: "", keywords: [] },
+                { qImg: "pic6.png", qText: "On Wednesday. Daming: Are you ready to go, Dad? Dad: No, I can't find my car key. Daming: Where was it? Dad: It was on the desk.", qTip: "朗读完整段落", stdAns: "", keywords: [] },
+                { qImg: "pic6.png", qText: "On Friday. Dad: Daming, are you OK? Daming: I can't find my coins. Did you see them? Dad: No, I didn't. Daming: First, Mum's ring. Then, Dad's key. Now, my coins. What's going on?", qTip: "朗读完整段落", stdAns: "", keywords: [] },
+                { qImg: "pic6.png", qText: "Daming: I know. Come over here, everyone! Dad: What for? Daming: Look! The lost things are all there. Mum & Dad: Well done, Daming!", qTip: "朗读完整段落", stdAns: "", keywords: [] }
+            ];
+
+            // C卷 模块1 → pic7.png
+            paperBank.C[0] = [
+                { qImg: "pic7.png", qText: "Dear Mum and Dad, It's the second day in China for Grandpa and me. I had a good time yesterday. The high-speed train was a surprise!", qTip: "完整朗读图片英文内容", stdAns: "", keywords: [] },
+                { qImg: "pic7.png", qText: "It was around 15 hours from Beijing to Xi'an about 30 years ago. Grandpa still remembers that. He had a long journey then. But now it takes only a little over four hours.", qTip: "完整朗读图片英文内容", stdAns: "", keywords: [] },
+                { qImg: "pic7.png", qText: "We left Beijing in the morning and got to Xi'an in time for lunch. The 'Chinese hamburger' tasted very good! Grandpa said, 'It's still the same taste!'", qTip: "完整朗读图片英文内容", stdAns: "", keywords: [] },
+                { qImg: "pic7.png", qText: "Xi'an also surprised me. It was an old city in Grandpa's photos. But now it's very different. We are going to Chengdu tomorrow, also by the high-speed train. I can't wait! With love, David", qTip: "完整朗读图片英文内容", stdAns: "", keywords: [] }
+            ];
+
+            // C卷 模块2 → pic8.png
+            paperBank.C[1] = [
+                { qImg: "pic8.png", qText: "Q1: When did it happen?", qTip: "什么时候？", stdAns: "Last Sunday afternoon.", keywords: ["sunday", "afternoon"] },
+                { qImg: "pic8.png", qText: "Q2: Where were you?", qTip: "在哪里？", stdAns: "I was at the library.", keywords: ["library"] },
+                { qImg: "pic8.png", qText: "Q3: Who was there?", qTip: "谁在？", stdAns: "My mom was there with me.", keywords: ["mom"] },
+                { qImg: "pic8.png", qText: "Q4: What did you do?", qTip: "你做了什么？", stdAns: "I helped a little girl find her way home.", keywords: ["help", "girl", "home"] },
+                { qImg: "pic8.png", qText: "Q5: Put it together", qTip: "连成一段话", stdAns: "Last Sunday afternoon, I helped a little girl find her way home with my mom.", keywords: ["sunday", "library", "mom", "help", "girl"] }
+            ];
+
+            // C卷 模块3 → pic9.png
+            paperBank.C[2] = [
+                { qImg: "pic9.png", qText: "The four friends went to a hill. 'Let's see who gets to the top first!' said Amy. 'One, two, three. Run!' They all hurried up to the top of the hill.", qTip: "朗读完整段落", stdAns: "", keywords: [] },
+                { qImg: "pic9.png", qText: "At first, Daming was at the front. But then he slowed down. One by one, his friends went past him.", qTip: "朗读完整段落", stdAns: "", keywords: [] },
+                { qImg: "pic9.png", qText: "'I win!' said Lingling. 'But where's Daming?' asked Sam. They waited and waited. At last, Daming came with a big bag.", qTip: "朗读完整段落", stdAns: "", keywords: [] },
+                { qImg: "pic9.png", qText: "'Where did you go?' asked Lingling. 'I saw some rubbish on the way. I picked it up.'", qTip: "朗读完整段落", stdAns: "", keywords: [] },
+                { qImg: "pic9.png", qText: "'Daming, you're the real winner!' said Lingling.", qTip: "朗读完整段落", stdAns: "", keywords: [] }
+            ];
+        }
+
+        // ===================== 语音识别初始化 =====================
+        function InitSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                document.getElementById("lblTip").innerText = "❌ 当前浏览器不支持语音识别，请使用 Chrome/Edge";
+                document.getElementById("btnStartRec").disabled = true;
+                return;
+            }
+            recognition = new SpeechRecognition();
+            recognition.lang = "en-US";
+            recognition.continuous = true;
+            recognition.interimResults = true;
+
+            recognition.onresult = function(e) {
+                let result = "";
+                for (let i = e.resultIndex; i < e.results.length; i++) {
+                    result += e.results[i][0].transcript + " ";
+                }
+                readBuffer = result;
+                document.getElementById("txtUserAnswer").value = readBuffer.trim();
+            };
+
+            recognition.onend = function() {
+                if(isRecording) recognition.start();
+            };
+        }
+
+        // ===================== 加载当前题目 + 加载对应图片 =====================
+        function LoadCurrentQuestion() {
+            const modules = paperBank[currentPaper];
+            if(!modules || !modules[currentModule - 1]) {
+                document.getElementById("lblTip").innerText = "该试卷无此模块！";
+                document.getElementById("lblProgress").innerText = "进度：无";
+                document.getElementById("picTest").src = "";
+                return;
+            }
+            const qList = modules[currentModule - 1];
+            const total = qList.length;
+            const nowIdx = currentQuesIndex + 1;
+            document.getElementById("lblProgress").innerText = `当前进度：${nowIdx} / ${total}`;
+
+            if(currentQuesIndex >= total) {
+                document.getElementById("lblTip").innerText = "该模块所有题目已完成！";
+                document.getElementById("txtContent").value = "";
+                document.getElementById("txtUserAnswer").value = "";
+                document.getElementById("picTest").src = "";
+                return;
+            }
+
+            const item = qList[currentQuesIndex];
+            // 加载题目图片
+            document.getElementById("picTest").src = item.qImg;
+
+            let content = item.qText;
+            if(transDic.has(item.qText)) {
+                content += "\n【译】" + transDic.get(item.qText);
+            }
+            document.getElementById("txtContent").value = content;
+            document.getElementById("txtUserAnswer").value = "";
+
+            let tipStr = "";
+            if(item.stdAns) {
+                tipStr = `作答提示：${item.qTip} | 参考标准回答：${item.stdAns}`;
+            } else {
+                tipStr = `朗读提示：${item.qTip}`;
+            }
+            document.getElementById("lblTip").innerText = tipStr;
+        }
+
+        // ===================== 核心评分算法（完全复刻原VB） =====================
+        function CalculateSpeechScore(item, userText) {
+            const userClean = CleanText(userText);
+            const userWords = userClean.split(" ").filter(w=>w);
+            let hit = 0;
+            for(let k of item.keywords) {
+                if(userWords.includes(k)) hit++;
+            }
+            const keywordRate = item.keywords.length > 0 ? hit / item.keywords.length : 0;
+            const sentenceCount = userText.split(/[.!?]/).filter(s=>s.trim()).length;
+
+            let keywordWeight = 70, structureWeight = 20, fluencyWeight = 10;
+            if(item.keywords.length <= 2) {
+                keywordWeight = 90; structureWeight = 10; fluencyWeight = 0;
+            } else if(sentenceCount >= 3) {
+                keywordWeight = 50; structureWeight = 30; fluencyWeight = 20;
+            }
+
+            const structureScore = sentenceCount >= 1 ? structureWeight : Math.floor(structureWeight / 2);
+            const fluencyScore = userWords.length >= item.keywords.length ? fluencyWeight : Math.floor(fluencyWeight / 2);
+            let score = Math.round(keywordRate * keywordWeight + structureScore + fluencyScore);
+            let desc = "";
+
+            if(score >= 90) desc = "优秀：发音标准，内容完整";
+            else if(score >= 75) desc = "良好：核心关键词完整";
+            else if(score >= 60) desc = "合格：有少量遗漏";
+            else desc = "需加强：关键词未读全";
+
+            return {score, desc};
+        }
+
+        // ===================== 导出题库为TXT =====================
+        function ExportPaper(paper) {
+            const modules = paperBank[paper];
+            if(!modules) {
+                alert("暂无题库数据");
+                return;
+            }
+            let sb = [];
+            sb.push("=============================================");
+            sb.push(`                ${paper}卷 口语试题全集`);
+            sb.push("导出时间：" + new Date().toLocaleString());
+            sb.push("=============================================\n");
+
+            // 模块1
+            sb.push("【第一部分 看图说话】");
+            sb.push("---------------------------------------------");
+            for(let i=0; i<modules[0].length; i++){
+                const it = modules[0][i];
+                sb.push(`第${i+1} 图`);
+                sb.push(`朗读内容：${it.qText}`);
+                if(transDic.has(it.qText)) sb.push(`中文翻译：${transDic.get(it.qText)}`);
+                sb.push(`作答提示：${it.qTip}\n`);
+            }
+            sb.push("\n");
+
+            // 模块2
+            sb.push("【第二部分 一问一答】");
+            sb.push("---------------------------------------------");
+            for(let i=0; i<modules[1].length; i++){
+                const it = modules[1][i];
+                sb.push(`第${i+1} 组问答`);
+                sb.push(`题目内容：${it.qText}`);
+                if(transDic.has(it.qText)) sb.push(`中文翻译：${transDic.get(it.qText)}`);
+                sb.push(`参考答案：${it.stdAns}`);
+                sb.push(`作答提示：${it.qTip}\n`);
+            }
+            sb.push("\n");
+
+            // 模块3
+            sb.push("【第三部分 短文朗读】");
+            sb.push("---------------------------------------------");
+            for(let i=0; i<modules[2].length; i++){
+                const it = modules[2][i];
+                sb.push(`第${i+1} 篇短文`);
+                sb.push(`朗读内容：${it.qText}`);
+                if(transDic.has(it.qText)) sb.push(`中文翻译：${transDic.get(it.qText)}`);
+                sb.push(`作答提示：${it.qTip}\n`);
+            }
+
+            const content = sb.join("\r\n");
+            const blob = new Blob([content], {type:"text/plain;charset=utf-8"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${paper}卷_口语题库_${new Date().getTime()}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // ===================== 页面加载初始化 =====================
+        window.onload = function() {
+            InitTranslation();
+            InitAllPapers();
+            InitSpeechRecognition();
+            LoadCurrentQuestion();
+
+            // 语速调节
+            const tbRate = document.getElementById("tbRate");
+            const lblRateTip = document.getElementById("lblRateTip");
+            tbRate.oninput = function() {
+                speechRate = parseInt(this.value);
+                synth.rate = 1 + speechRate / 20;
+                let tip = speechRate > 0 ? "偏快" : speechRate < 0 ? "偏慢" : "正常";
+                lblRateTip.innerText = tip + ` (${speechRate})`;
+            };
+
+            // 试卷切换
+            document.getElementById("cboPaper").onchange = function() {
+                currentPaper = this.value;
+                currentQuesIndex = 0;
+                LoadCurrentQuestion();
+            };
+
+            // 模块切换
+            document.getElementById("cboModule").onchange = function() {
+                currentModule = parseInt(this.value);
+                currentQuesIndex = 0;
+                LoadCurrentQuestion();
+            };
+
+            // 播放题目朗读
+            document.getElementById("btnPlayAudio").onclick = function() {
+                const txt = document.getElementById("txtContent").value;
+                const pureEng = txt.split("\n").filter(s=>!s.startsWith("【译】")).join(" ");
+                const utter = new SpeechSynthesisUtterance(pureEng);
+                utter.lang = "en-US";
+                utter.rate = 1 + speechRate / 20;
+                synth.speak(utter);
+                document.getElementById("lblTip").innerText = "正在播放标准发音，请跟读/作答";
+            };
+
+            // 朗读参考答案
+            document.getElementById("btnPlayStdAns").onclick = function() {
+                const qList = paperBank[currentPaper][currentModule - 1];
+                const item = qList[currentQuesIndex];
+                if(!item.stdAns) {
+                    alert("当前题目无参考答案");
+                    return;
+                }
+                const utter = new SpeechSynthesisUtterance(item.stdAns);
+                utter.lang = "en-US";
+                utter.rate = 1 + speechRate / 20;
+                synth.speak(utter);
+
+                let addText = "\n———————— 参考答案 ————————\n" + item.stdAns;
+                if(transDic.has(item.stdAns)) addText += "\n【译】" + transDic.get(item.stdAns);
+                document.getElementById("txtContent").value += addText;
+                document.getElementById("lblTip").innerText = "正在朗读参考答案，请参考";
+            };
+
+            // 开始录音
+            document.getElementById("btnStartRec").onclick = function() {
+                if(!recognition) {
+                    alert("语音识别不可用，请使用Chrome/Edge浏览器");
+                    return;
+                }
+                isRecording = true;
+                readBuffer = "";
+                document.getElementById("txtUserAnswer").value = "";
+                this.disabled = true;
+                document.getElementById("btnStopRec").disabled = false;
+                document.getElementById("lblTip").innerText = "正在录音，请完整朗读内容...";
+                recognition.start();
+            };
+
+            // 停止录音 + 评分
+            document.getElementById("btnStopRec").onclick = function() {
+                isRecording = false;
+                document.getElementById("btnStartRec").disabled = false;
+                this.disabled = true;
+                if(recognition) recognition.stop();
+
+                const userText = readBuffer.trim();
+                const qList = paperBank[currentPaper][currentModule - 1];
+                const item = qList[currentQuesIndex];
+
+                if(!userText) {
+                    document.getElementById("lblTip").innerText = "评分结果：0 分 | 未识别到朗读内容，请重新录音";
+                    return;
+                }
+                const res = CalculateSpeechScore(item, userText);
+                document.getElementById("lblTip").innerText = `综合得分：${res.score} 分 | ${res.desc}`;
+            };
+
+            // 下一题
+            document.getElementById("btnNextQues").onclick = function() {
+                currentQuesIndex++;
+                LoadCurrentQuestion();
+            };
+
+            // 保存作答记录（本地下载txt）
+            document.getElementById("btnSaveRecord").onclick = function() {
+                const userAns = document.getElementById("txtUserAnswer").value.trim();
+                if(!userAns) {
+                    alert("请先完成作答！");
+                    return;
+                }
+                const qList = paperBank[currentPaper][currentModule - 1];
+                const item = qList[currentQuesIndex];
+                let record = `【${currentPaper}卷 模块${currentModule} 第${currentQuesIndex+1}题】\r\n`;
+                record += `题目：${document.getElementById("txtContent").value}\r\n`;
+                record += `参考标准：${item.stdAns}\r\n`;
+                record += `你的作答：${userAns}\r\n`;
+                record += `作答时间：${new Date().toLocaleString()}\r\n`;
+                record += "------------------------\r\n";
+
+                const blob = new Blob([record], {type:"text/plain;charset=utf-8"});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "OralTestRecord.txt";
+                a.click();
+                URL.revokeObjectURL(url);
+            };
+
+            // 选择本地音频
+            document.getElementById("btnSelectAudio").onclick = function() {
+                const input = document.createElement("input");
+                input.type = "file";
+                input.accept = ".wav,.mp3,.m4a,.wma";
+                input.onchange = function(e) {
+                    currentAudioPath = URL.createObjectURL(e.target.files[0]);
+                    document.getElementById("lblTip").innerText = "已选择音频文件";
+                };
+                input.click();
+            };
+
+            // 播放本地音频
+            document.getElementById("btnPlayAudioFile").onclick = function() {
+                if(!currentAudioPath) {
+                    alert("请先选择音频文件");
+                    return;
+                }
+                const audio = document.getElementById("audioPlayer");
+                audio.src = currentAudioPath;
+                audio.play();
+                document.getElementById("lblTip").innerText = "正在播放本地音频";
+            };
+
+            // 停止音频
+            document.getElementById("btnStopAudioFile").onclick = function() {
+                const audio = document.getElementById("audioPlayer");
+                audio.pause();
+                audio.currentTime = 0;
+                document.getElementById("lblTip").innerText = "音频已停止";
+            };
+
+            // 导出各卷题库
+            document.getElementById("btnExportA").onclick = ()=>ExportPaper("A");
+            document.getElementById("btnExportB").onclick = ()=>ExportPaper("B");
+            document.getElementById("btnExportC").onclick = ()=>ExportPaper("C");
+        };
+    </script>
+</body>
+</html>
