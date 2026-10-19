@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>临时停车-付费1元解锁挪车拨号</title>
+    <title>临时停车-生成挪车拨号二维码</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -22,48 +22,69 @@
             margin-top: 80px;
         }
         h2 { margin-bottom: 25px; font-size: 24px; color: #333; }
-        .input-box { margin-bottom: 20px; }
-        #userPhone {
+        .input-box { margin-bottom: 20px; text-align:left; }
+        .input-box label{
+            display:block;
+            font-size:14px;
+            color:#555;
+            margin-bottom:6px;
+        }
+        #userPhone, #remarkText, #qrSize{
             width: 100%;
             padding: 14px;
             font-size: 18px;
             border: 2px solid #eee;
             border-radius: 8px;
-            text-align: center;
             outline: none;
         }
-        #userPhone:focus { border-color: #0088ff; }
-        .pay-box {
-            padding: 20px;
-            border: 2px dashed #07c160;
-            border-radius: 10px;
-            background: #f8fffa;
-            margin: 20px 0;
+        #userPhone:focus, #remarkText:focus, #qrSize:focus { border-color: #0088ff; }
+        .gen-btn{
+            padding:14px 20px;
+            width:100%;
+            background:#07c160;
+            color:#fff;
+            border:none;
+            border-radius:8px;
+            font-size:18px;
+            cursor:pointer;
         }
-        .pay-title {
-            font-size: 18px;
-            color: #07c160;
-            font-weight: bold;
-            margin-bottom: 10px;
+        .gen-btn:disabled{
+            background:#999;
+            cursor:not-allowed;
         }
-        .pay-desc {
-            font-size: 15px;
-            color: #666;
-            line-height: 1.7;
-            margin-bottom: 15px;
+        .pay-btn{
+            margin-bottom:16px;
+            padding:14px 20px;
+            width:100%;
+            background:#ff9500;
+            color:#fff;
+            border:none;
+            border-radius:8px;
+            font-size:18px;
+            cursor:pointer;
         }
-        #pay-code-img {
-            width: 260px;
-            height: 260px;
-            margin: 0 auto;
-            border: 1px solid #eee;
-            border-radius: 8px;
+        .download-btn{
+            margin-top:16px;
+            padding:12px 20px;
+            width:100%;
+            background:#0088ff;
+            color:#fff;
+            border:none;
+            border-radius:8px;
+            font-size:16px;
+            cursor:pointer;
+            display:none;
         }
-        .tip {
-            color: #ff5500;
-            font-weight: bold;
-            font-size: 14px;
-            margin-top: 10px;
+        .reset-btn{
+            margin-top:12px;
+            padding:12px 20px;
+            width:100%;
+            background:#ff5555;
+            color:#fff;
+            border:none;
+            border-radius:8px;
+            font-size:16px;
+            cursor:pointer;
         }
         .qrcode-box {
             display: none;
@@ -76,8 +97,7 @@
             font-weight: 500;
         }
         #qrcodeContainer {
-            width: 280px;
-            height: 280px;
+            width: auto;
             margin: 0 auto;
         }
         .top-nav {
@@ -102,32 +122,30 @@
             cursor:pointer;
             margin-top:30px;
         }
-        /* 开发者按钮：默认隐藏，你点5次页面标题显示 */
-        .dev-btn {
-            display: none;
-            padding: 10px 20px;
-            background: #07c160;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            margin-top: 20px;
+        .tip-text{
+            color:#ff5555;
+            font-size:14px;
+            margin:8px 0 16px;
+        }
+        .time-tip{
+            font-size:14px;
+            color:#07c160;
+            margin-bottom:12px;
+            display:none;
         }
     </style>
 </head>
 <body>
-
 <nav class="top-nav">
     <a href="./index.html" class="nav-link">单词训练</a>
     <a href="./TwoCode.html" class="nav-link active">挪车付费</a>
     <a href="./Piper.html" class="nav-link">地下水水化学分析</a>
 </nav>
-
 <div class="container">
-    <h2 id="pageTitle">临时停车-付费1元解锁挪车拨号</h2>
-
-    <!-- 第一步：输入手机号 -->
+    <h2 id="pageTitle">临时停车-生成挪车拨号二维码</h2>
+    <!--手机号输入-->
     <div class="input-box">
+        <label>手机号</label>
         <input
             type="tel"
             id="userPhone"
@@ -135,80 +153,283 @@
             maxlength="11"
         >
     </div>
-
-    <!-- 第二步：支付 -->
-    <div class="pay-box" id="payBox">
-        <div class="pay-title">请支付1元生成挪车二维码</div>
-        <div class="pay-desc">
-            输入手机号 → 扫码支付1元 → 开发者确认 → 自动生成挪车码
-        </div>
-        <img id="pay-code-img" src="./wechat-pay-qr.png" alt="微信收款码">
-        <div class="tip">付款后等待自动生成二维码，无需操作</div>
+    <!--文字备注输入-->
+    <div class="input-box">
+        <label>底部备注文字（可选，例如：请扫码挪车，感谢）</label>
+        <input
+            type="text"
+            id="remarkText"
+            placeholder="请扫码挪车，谢谢您的谅解"
+        >
     </div>
-
-    <!-- 第三步：生成挪车码（自动显示） -->
+    <!--二维码尺寸输入-->
+    <div class="input-box">
+        <label>二维码尺寸(px，推荐200~400)</label>
+        <input
+            type="number"
+            id="qrSize"
+            value="280"
+            min="100"
+            max="600"
+        >
+    </div>
+    <div class="tip-text" id="payTip">⚠️ 需要支付1元激活生成功能</div>
+    <div class="time-tip" id="timeTip"></div>
+    <!-- 支付激活按钮 -->
+    <button class="pay-btn" id="payBtn">💳 支付1元激活生成权限</button>
+    <!-- 生成按钮（默认禁用） -->
+    <button class="gen-btn" id="genBtn" disabled>生成挪车二维码</button>
+    <!-- 重置按钮 -->
+    <button class="reset-btn" id="resetBtn">🔄 重置清空</button>
+    <!-- 生成挪车码区域 -->
     <div class="qrcode-box" id="qrcodeBox">
         <div class="qrcode-text">✅ 挪车拨号二维码已生成</div>
         <div id="qrcodeContainer"></div>
-        <div style="margin-top:15px; font-size:15px; color:#333;">
-            扫码即可拨号挪车
-        </div>
+        <div id="qrRemark" style="margin-top:12px; font-size:16px; color:#333;"></div>
     </div>
-
-    <!-- 开发者确认按钮（默认隐藏，你点标题5次显示） -->
-    <button class="dev-btn" id="confirmBtn">✅ 确认收款，生成挪车码</button>
-
+    <!-- 下载二维码图片按钮 -->
+    <button class="download-btn" id="downloadBtn">📥 下载二维码图片</button>
     <button class="back-btn" onclick="window.location.href='/'">返回主页</button>
 </div>
-
 <script src="https://cdn.bootcdn.net/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
     let userPhone = "";
-    let clickCount = 0; // 标题点击计数
+    let qrCodeObj = null;
+    let orderId = null;
+    let pollTimer = null;
+    let remainTimer = null; // 剩余时长倒计时定时器
+    const API_BASE = "https://localhost:5001/api";
+    const ACTIVE_EXPIRE_HOUR = 24; // 激活有效期 24小时
 
-    // =========================================
-    // 1. 你点标题5次 → 显示“确认收款”按钮
-    // =========================================
-    document.getElementById("pageTitle").addEventListener("click", function () {
-        clickCount++;
-        if (clickCount >= 5) {
-            document.getElementById("confirmBtn").style.display = "block";
-            clickCount = 0; // 重置计数
-            alert("✅ 开发者按钮已显示，确认收款请点击");
+    const genBtn = document.getElementById("genBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const payBtn = document.getElementById("payBtn");
+    const payTip = document.getElementById("payTip");
+    const timeTip = document.getElementById("timeTip");
+
+    genBtn.addEventListener("click", generateCode);
+    downloadBtn.addEventListener("click", downloadQR);
+    resetBtn.addEventListener("click", resetPage);
+    payBtn.addEventListener("click", createPayOrder);
+
+    // 页面加载读取本地付费激活状态
+    window.onload = function(){
+        const saved = localStorage.getItem("nocar_activate");
+        if(saved){
+            const activateInfo = JSON.parse(saved);
+            const now = Date.now();
+            // 判断是否过期
+            if(now < activateInfo.expireTime){
+                // 未过期，直接解锁并启动倒计时
+                genBtn.disabled = false;
+                payTip.textContent = "✅ 已付费激活，可以生成二维码";
+                payTip.style.color="#07c160";
+                orderId = activateInfo.orderId;
+                startTimeRemain(activateInfo.expireTime);
+            }else{
+                // 过期，清除本地存储
+                localStorage.removeItem("nocar_activate");
+                payTip.textContent = "⚠️ 激活已过期，请重新支付";
+            }
         }
-    });
+    }
 
-    // =========================================
-    // 2. 你点按钮 → 自动生成该用户手机号的挪车码
-    // =========================================
-    document.getElementById("confirmBtn").addEventListener("click", confirmPay);
+    // 启动剩余时长倒计时
+    function startTimeRemain(expireTs){
+        timeTip.style.display = "block";
+        updateRemainTime(expireTs);
+        if(remainTimer) clearInterval(remainTimer);
+        remainTimer = setInterval(()=>{
+            updateRemainTime(expireTs);
+        },1000);
+    }
 
-    function confirmPay() {
+    // 更新剩余时间文本
+    function updateRemainTime(expireTs){
+        const now = Date.now();
+        const diffMs = expireTs - now;
+        if(diffMs <= 0){
+            // 时间到，过期
+            clearInterval(remainTimer);
+            remainTimer = null;
+            localStorage.removeItem("nocar_activate");
+            genBtn.disabled = true;
+            payTip.textContent = "⚠️ 激活已过期，请重新支付";
+            payTip.style.color="#ff5555";
+            timeTip.style.display = "none";
+            return;
+        }
+        const totalSec = Math.floor(diffMs / 1000);
+        const h = Math.floor(totalSec / 3600);
+        const m = Math.floor((totalSec % 3600)/60);
+        const s = totalSec % 60;
+        timeTip.innerText = `⏱ 激活剩余有效期：${h}小时 ${m}分 ${s}秒`;
+    }
+
+    // 创建订单
+    async function createPayOrder(){
+        const phoneInput = document.getElementById("userPhone").value.trim();
+        if(!/^1[3-9]\d{9}$/.test(phoneInput)){
+            alert("请先填写手机号再下单！");
+            return;
+        }
+        try{
+            payBtn.disabled = true;
+            payTip.textContent = "正在创建订单...";
+            const res = await fetch(`${API_BASE}/pay/create`, {
+                method:"POST",
+                headers:{"Content-Type":"application/json"},
+                body: JSON.stringify({
+                    phone: phoneInput,
+                    amount:1
+                })
+            });
+            const result = await res.json();
+            if(!result.success){
+                alert(result.msg || "创建订单失败");
+                payBtn.disabled = false;
+                payTip.textContent = "⚠️ 需要支付1元激活生成功能";
+                return;
+            }
+            orderId = result.orderId;
+            // 打开支付页面
+            if(result.payUrl){
+                window.open(result.payUrl,"_blank");
+            }
+            payTip.textContent = "订单已创建，请完成付款，页面自动检测支付状态";
+            startPoll();
+        }catch(err){
+            console.error(err);
+            alert("网络异常，创建订单失败");
+            payBtn.disabled = false;
+            payTip.textContent = "⚠️ 需要支付1元激活生成功能";
+        }
+    }
+
+    function startPoll(){
+        if(pollTimer) clearInterval(pollTimer);
+        pollTimer = setInterval(queryOrderStatus, 2000);
+    }
+
+    async function queryOrderStatus(){
+        if(!orderId) return;
+        try{
+            const res = await fetch(`${API_BASE}/pay/query?orderId=${orderId}`);
+            const result = await res.json();
+            if(result.success && result.paid === true){
+                clearInterval(pollTimer);
+                pollTimer = null;
+                // 计算过期时间
+                const expireTime = Date.now() + ACTIVE_EXPIRE_HOUR * 60 * 60 * 1000;
+                // 存入localStorage
+                const activateInfo = {
+                    orderId: orderId,
+                    expireTime: expireTime
+                };
+                localStorage.setItem("nocar_activate", JSON.stringify(activateInfo));
+
+                genBtn.disabled = false;
+                payTip.textContent = "✅ 已付费激活，可以生成二维码";
+                payTip.style.color="#07c160";
+                payBtn.disabled = false;
+                alert("支付成功！解锁生成挪车二维码功能，24小时内刷新页面保持激活");
+                startTimeRemain(expireTime);
+            }
+        }catch(e){
+            console.log("查询状态异常");
+        }
+    }
+
+    function generateCode() {
         userPhone = document.getElementById("userPhone").value.trim();
+        const remark = document.getElementById("remarkText").value.trim();
+        let size = parseInt(document.getElementById("qrSize").value);
         const reg = /^1[3-9]\d{9}$/;
-
         if (!reg.test(userPhone)) {
             alert("请先输入有效的11位手机号！");
             return;
         }
+        if(isNaN(size) || size<100 || size>600){
+            alert("尺寸范围必须100~600");
+            return;
+        }
+        const confirmPhone = confirm(`确认手机号：${userPhone}？号码一旦生成二维码无法修改`);
+        if(!confirmPhone){
+            return;
+        }
 
-        // 隐藏支付区，显示二维码
-        document.getElementById("payBox").style.display = "none";
         document.getElementById("qrcodeBox").style.display = "block";
-
-        // 生成拨号二维码
+        downloadBtn.style.display = "block";
         const container = document.getElementById("qrcodeContainer");
         container.innerHTML = "";
-        new QRCode(container, {
+        qrCodeObj = new QRCode(container, {
             text: `tel:${userPhone}`,
-            width: 280,
-            height: 280,
+            width: size,
+            height: size,
             colorDark: "#000",
             colorLight: "#fff",
             correctLevel: QRCode.CorrectLevel.H
         });
+        document.getElementById("qrRemark").innerText = remark || "扫码即可拨号挪车";
+    }
 
-        alert("✅ 已确认收款！挪车二维码已自动生成");
+    function downloadQR() {
+        if (!qrCodeObj) return;
+        const canvas = document.querySelector("#qrcodeContainer canvas");
+        if(!canvas){
+            alert("二维码尚未生成！");
+            return;
+        }
+        const remark = document.getElementById("remarkText").value.trim();
+        const mergeCanvas = document.createElement('canvas');
+        const ctx = mergeCanvas.getContext('2d');
+        const qrSize = parseInt(document.getElementById("qrSize").value);
+        const padding = 40;
+        const textHeight = remark ? 60 : 0;
+        mergeCanvas.width = qrSize + padding*2;
+        mergeCanvas.height = qrSize + padding*2 + textHeight;
+        ctx.fillStyle="#ffffff";
+        ctx.fillRect(0,0,mergeCanvas.width,mergeCanvas.height);
+        ctx.drawImage(canvas, padding, padding, qrSize, qrSize);
+        if(remark){
+            ctx.fillStyle="#333333";
+            ctx.font="20px Microsoft Yahei";
+            ctx.textAlign="center";
+            ctx.fillText(remark, mergeCanvas.width/2, padding + qrSize + 40);
+        }
+        const link = document.createElement('a');
+        link.download = `挪车二维码_${userPhone}.png`;
+        link.href = mergeCanvas.toDataURL("image/png");
+        link.click();
+    }
+
+    function resetPage(){
+        userPhone = "";
+        qrCodeObj = null;
+        orderId = null;
+        if(pollTimer){
+            clearInterval(pollTimer);
+            pollTimer = null;
+        }
+        if(remainTimer){
+            clearInterval(remainTimer);
+            remainTimer = null;
+        }
+        // 清除本地激活记录
+        localStorage.removeItem("nocar_activate");
+        document.getElementById("userPhone").value = "";
+        document.getElementById("remarkText").value = "";
+        document.getElementById("qrSize").value = "280";
+        document.getElementById("qrcodeBox").style.display = "none";
+        downloadBtn.style.display = "none";
+        document.getElementById("qrcodeContainer").innerHTML = "";
+        document.getElementById("qrRemark").innerText = "";
+        genBtn.disabled = true;
+        payTip.textContent = "⚠️ 需要支付1元激活生成功能";
+        payTip.style.color="#ff5555";
+        payBtn.disabled = false;
+        timeTip.style.display = "none";
     }
 </script>
 </body>
